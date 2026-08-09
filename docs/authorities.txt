@@ -1,0 +1,11 @@
+#format:
+authority roles
+
+*.* [admin]
+members.* [admin]
+events.* [event_team]
+announcements.* [marketing_team]
+forms.* [event_team, editorial_team]
+gallery.* [media_team, editorial_team]
+
+*.read [*]

@@ -1,0 +1,28 @@
+#format:
+team_name:
+    (positions)
+
+Leaders:
+    (General Secretary, Joint General Secretary)
+Faculty:
+    (Faculty)
+Web Team:
+    (Head, Joint Head, Member)
+Technical Team:
+    (Head, Joint Head, Member)
+Media Team:
+    (Head, Joint Head, Member)
+Marketing Team:
+    (Head, Joint Head, Member)
+Treasury Team:
+    (Head, Joint Head, Member)
+Event Team:
+    (Head, Joint Head, Member)
+DnP Team:
+    (Head, Joint Head, Member)
+Editorial Team:
+    (Head, Joint Head, Member)
+Production Team:
+    (Head, Joint Head, Member)
+Executive:
+    (Administrator, admin)

@@ -1,0 +1,107 @@
+import nodemailer from 'nodemailer';
+import { config } from '../config/index.js';
+
+let transporter = null;
+
+/**
+ * Lazy initialization helper to return a singleton Nodemailer transporter.
+ * Uses configured SMTP credentials if provided, otherwise falls back to Ethereal test transport or JSON transport.
+ */
+const getTransporter = async () => {
+  if (transporter) {
+    return transporter;
+  }
+
+  if (config.smtp.host && config.smtp.user) {
+    transporter = nodemailer.createTransport({
+      host: config.smtp.host,
+      port: config.smtp.port,
+      secure: config.smtp.secure,
+      auth: {
+        user: config.smtp.user,
+        pass: config.smtp.pass,
+      },
+    });
+    console.info(`[Mailer] Initialized SMTP transporter for host: ${config.smtp.host}`);
+  } else if (config.env === 'test') {
+    transporter = nodemailer.createTransport({ jsonTransport: true });
+  } else {
+    try {
+      const testAccount = await nodemailer.createTestAccount();
+      transporter = nodemailer.createTransport({
+        host: 'smtp.ethereal.email',
+        port: 587,
+        secure: false,
+        auth: {
+          user: testAccount.user,
+          pass: testAccount.pass,
+        },
+      });
+      console.info(`[Mailer] SMTP credentials not set. Initialized Ethereal test account: ${testAccount.user}`);
+    } catch (_err) {
+      transporter = nodemailer.createTransport({ jsonTransport: true });
+      console.info('[Mailer] Falling back to JSON Transport for local mail operations.');
+    }
+  }
+
+  return transporter;
+};
+
+/**
+ * Generic email sending function using Nodemailer.
+ */
+export const sendMail = async ({ to, subject, html, text, from }) => {
+  const mailTransporter = await getTransporter();
+
+  const mailOptions = {
+    from: from || config.smtp.from,
+    to,
+    subject,
+    html,
+    text: text || html.replace(/<[^>]*>?/gm, ''),
+  };
+
+  const info = await mailTransporter.sendMail(mailOptions);
+  const previewUrl = nodemailer.getTestMessageUrl(info);
+
+  console.info(`[Mailer] Email dispatched to ${to} (MessageID: ${info.messageId})`);
+  if (previewUrl) {
+    console.info(`[Mailer] Preview URL: ${previewUrl}`);
+  }
+
+  return {
+    success: true,
+    messageId: info.messageId,
+    previewUrl: previewUrl || null,
+    info,
+  };
+};
+
+/**
+ * Utility to send onboarding emails to newly registered members using Nodemailer.
+ */
+export const sendOnboardingEmail = async ({ email, token, name }) => {
+  const onboardingLink = `${config.clientOrigin}/onboard?token=${token}`;
+
+  const html = `
+    <h2>Welcome to ACES Association!</h2>
+    <p>Hello${name ? ` ${name}` : ''},</p>
+    <p>An administrator has registered you for membership. Please click the link below to set your password and activate your account:</p>
+    <p><a href="${onboardingLink}">${onboardingLink}</a></p>
+    <p>This link will expire in 24 hours.</p>
+  `;
+
+  console.info(`[Mailer] Onboarding email dispatched to ${email}`);
+  console.info(`[Mailer] Onboarding Link: ${onboardingLink}`);
+
+  const result = await sendMail({
+    to: email,
+    subject: 'Welcome to ACES - Complete Your Membership Registration',
+    html,
+  });
+
+  return {
+    ...result,
+    onboardingLink,
+  };
+};
