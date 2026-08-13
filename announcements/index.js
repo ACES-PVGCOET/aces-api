@@ -2,7 +2,7 @@ import { AnnouncementsInternalService } from './internal/announcements.service.i
 
 export const AnnouncementsService = {
   createAnnouncement: (data, user) => AnnouncementsInternalService.createAnnouncement(data, user),
-  listAnnouncements: () => AnnouncementsInternalService.listAnnouncements(),
+  listAnnouncements: (params) => AnnouncementsInternalService.listAnnouncements(params),
   getAnnouncementById: (id) => AnnouncementsInternalService.getAnnouncementById(id),
   updateAnnouncement: (id, data, user) => AnnouncementsInternalService.updateAnnouncement(id, data, user),
   deleteAnnouncement: (id) => AnnouncementsInternalService.deleteAnnouncement(id),

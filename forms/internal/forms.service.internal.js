@@ -6,6 +6,57 @@ import { ValidationError, NotFoundError } from '../../shared/errors/index.js';
 
 export class FormsInternalService {
   /**
+   * Helper method to validate question schemas and build question document objects
+   */
+  static _validateAndPrepareQuestions(questions, formId) {
+    if (!Array.isArray(questions) || questions.length === 0) {
+      throw new ValidationError('At least one question is required.');
+    }
+
+    const questionDocs = [];
+    const serialSet = new Set();
+
+    for (let i = 0; i < questions.length; i++) {
+      const q = questions[i];
+      const serial = q.question_serial || i + 1;
+
+      if (serialSet.has(serial)) {
+        throw new ValidationError(`Duplicate question_serial ${serial} provided.`);
+      }
+      serialSet.add(serial);
+
+      if (!q.question_statement || typeof q.question_statement !== 'string' || !q.question_statement.trim()) {
+        throw new ValidationError(`Question statement is required for serial ${serial}.`);
+      }
+
+      if (!['textual', 'multiple_choice', 'file'].includes(q.question_type)) {
+        throw new ValidationError(`Invalid question_type '${q.question_type}' for serial ${serial}.`);
+      }
+
+      questionDocs.push({
+        form_id: formId,
+        question_serial: serial,
+        question_statement: q.question_statement.trim(),
+        question_type: q.question_type,
+        is_required: q.is_required !== undefined ? Boolean(q.is_required) : true,
+        textual_policy: {
+          max_len: (q.textual_policy && q.textual_policy.max_len) || 500,
+        },
+        multiple_choice_policy: {
+          type: (q.multiple_choice_policy && q.multiple_choice_policy.type) || 'Single',
+          options: (q.multiple_choice_policy && q.multiple_choice_policy.options) || [],
+        },
+        file_policy: {
+          supported_types: (q.file_policy && q.file_policy.supported_types) || [],
+          max_size_mb: (q.file_policy && q.file_policy.max_size_mb) || 5,
+        },
+      });
+    }
+
+    return questionDocs;
+  }
+
+  /**
    * Create a new form along with its structured questions
    */
   static async createForm({ title, description, questions = [], created_by }) {
@@ -26,45 +77,7 @@ export class FormsInternalService {
 
     try {
       // 2. Validate & Prepare Questions
-      const questionDocs = [];
-      const serialSet = new Set();
-
-      for (let i = 0; i < questions.length; i++) {
-        const q = questions[i];
-        const serial = q.question_serial || i + 1;
-
-        if (serialSet.has(serial)) {
-          throw new ValidationError(`Duplicate question_serial ${serial} provided.`);
-        }
-        serialSet.add(serial);
-
-        if (!q.question_statement || typeof q.question_statement !== 'string') {
-          throw new ValidationError(`Question statement is required for serial ${serial}.`);
-        }
-
-        if (!['textual', 'multiple_choice', 'file'].includes(q.question_type)) {
-          throw new ValidationError(`Invalid question_type '${q.question_type}' for serial ${serial}.`);
-        }
-
-        questionDocs.push({
-          form_id: form._id,
-          question_serial: serial,
-          question_statement: q.question_statement.trim(),
-          question_type: q.question_type,
-          is_required: q.is_required !== undefined ? Boolean(q.is_required) : true,
-          textual_policy: {
-            max_len: (q.textual_policy && q.textual_policy.max_len) || 500,
-          },
-          multiple_choice_policy: {
-            type: (q.multiple_choice_policy && q.multiple_choice_policy.type) || 'Single',
-            options: (q.multiple_choice_policy && q.multiple_choice_policy.options) || [],
-          },
-          file_policy: {
-            supported_types: (q.file_policy && q.file_policy.supported_types) || [],
-            max_size_mb: (q.file_policy && q.file_policy.max_size_mb) || 5,
-          },
-        });
-      }
+      const questionDocs = this._validateAndPrepareQuestions(questions, form._id);
 
       // 3. Insert Question Documents
       const createdQuestions = await Question.create(questionDocs);
@@ -195,20 +208,10 @@ export class FormsInternalService {
 
     form.updated_by = updated_by;
 
-    // If new questions array is provided, replace questions
+    // If new questions array is provided, replace questions safely
     if (Array.isArray(updateData.questions)) {
+      const questionDocs = this._validateAndPrepareQuestions(updateData.questions, form._id);
       await Question.deleteMany({ form_id });
-      const questionDocs = updateData.questions.map((q, idx) => ({
-        form_id: form._id,
-        question_serial: q.question_serial || idx + 1,
-        question_statement: q.question_statement.trim(),
-        question_type: q.question_type,
-        is_required: q.is_required !== undefined ? Boolean(q.is_required) : true,
-        textual_policy: q.textual_policy || { max_len: 500 },
-        multiple_choice_policy: q.multiple_choice_policy || { type: 'Single', options: [] },
-        file_policy: q.file_policy || { supported_types: [], max_size_mb: 5 },
-      }));
-
       const createdQuestions = await Question.create(questionDocs);
       form.question_ids = createdQuestions.map((q) => q._id);
     }
@@ -313,14 +316,13 @@ export class FormsInternalService {
           }
         } else if (question.question_type === 'file') {
           const policy = question.file_policy || {};
-          const supportedTypes = policy.supported_types || [];
+          const supportedTypes = (policy.supported_types || []).map((t) => t.toLowerCase().replace(/^\./, ''));
 
           if (supportedTypes.length > 0) {
             for (const fileUrl of answerArray) {
-              const extension = fileUrl.split('.').pop().toLowerCase();
-              const isValidType = supportedTypes.some(
-                (type) => type.toLowerCase() === extension || fileUrl.includes(type)
-              );
+              const urlPathname = fileUrl.split('?')[0].split('#')[0];
+              const extension = urlPathname.includes('.') ? urlPathname.split('.').pop().toLowerCase() : '';
+              const isValidType = supportedTypes.includes(extension);
               if (!isValidType) {
                 throw new ValidationError(
                   `Question serial ${question.question_serial} requires supported file type(s): [${supportedTypes.join(', ')}].`

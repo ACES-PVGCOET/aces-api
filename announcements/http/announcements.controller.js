@@ -13,9 +13,10 @@ export const createAnnouncement = asyncHandler(async (req, res) => {
   return sendSuccess(res, announcement, 201);
 });
 
-export const listAnnouncements = asyncHandler(async (_req, res) => {
-  const announcements = await AnnouncementsInternalService.listAnnouncements();
-  return sendSuccess(res, { announcements });
+export const listAnnouncements = asyncHandler(async (req, res) => {
+  const { page, limit } = req.query;
+  const result = await AnnouncementsInternalService.listAnnouncements({ page, limit });
+  return sendSuccess(res, result);
 });
 
 export const getAnnouncementById = asyncHandler(async (req, res) => {

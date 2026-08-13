@@ -12,16 +12,16 @@ import {
 import {
   authenticate,
   optionalAuthenticate,
-  requireRoles,
+  authorize,
 } from '../../orchestration/http/middleware/auth.js';
 
 const router = express.Router();
 
-// Form Creation (Requires editorial_team, event_team, or admin)
+// Form Creation (Requires forms.create authority)
 router.post(
   '/',
   authenticate,
-  requireRoles('editorial_team', 'event_team', 'admin'),
+  authorize('forms.create'),
   createForm
 );
 
@@ -35,7 +35,7 @@ router.get('/:form_id', optionalAuthenticate, getFormById);
 router.put(
   '/:form_id',
   authenticate,
-  requireRoles('editorial_team', 'event_team', 'admin'),
+  authorize('forms.update'),
   updateForm
 );
 
@@ -43,7 +43,7 @@ router.put(
 router.delete(
   '/:form_id',
   authenticate,
-  requireRoles('editorial_team', 'event_team', 'admin'),
+  authorize('forms.delete'),
   deleteForm
 );
 
@@ -54,7 +54,7 @@ router.post('/:form_id/responses', optionalAuthenticate, submitResponse);
 router.get(
   '/:form_id/responses',
   authenticate,
-  requireRoles('editorial_team', 'event_team', 'admin'),
+  authorize('forms.read_responses'),
   getFormResponses
 );
 
@@ -62,7 +62,7 @@ router.get(
 router.get(
   '/:form_id/responses/:response_id',
   authenticate,
-  requireRoles('editorial_team', 'event_team', 'admin'),
+  authorize('forms.read_responses'),
   getSingleResponse
 );
 
