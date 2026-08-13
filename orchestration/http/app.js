@@ -6,6 +6,7 @@ import { requestLoggerMiddleware } from './middleware/requestLogger.js';
 import { errorHandlerMiddleware } from './middleware/errorHandler.js';
 import { notFoundHandlerMiddleware } from './middleware/notFoundHandler.js';
 import iamRoutes from '../../iam/http/iam.routes.js';
+import formsRoutes from '../../forms/http/forms.routes.js';
 import announcementsRoutes from '../../announcements/http/announcements.routes.js';
 import { sendSuccess } from '../../shared/utils/responseFormatter.js';
 
@@ -44,6 +45,7 @@ apiV1Router.get('/health', (_req, res) => {
   });
 });
 apiV1Router.use('/iam', iamRoutes);
+apiV1Router.use('/forms', formsRoutes);
 apiV1Router.use('/announcements', announcementsRoutes);
 
 // Mount API Router under /api/v1

@@ -34,6 +34,7 @@
   "devDependencies": {
     "eslint": "^9.0.0",
     "eslint-plugin-import": "^2.29.1",
+    "mongodb-memory-server": "^11.2.0",
     "nodemon": "^3.1.0"
   }
 }
