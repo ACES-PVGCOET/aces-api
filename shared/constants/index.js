@@ -8,7 +8,7 @@ export const ROLES = {
   EDITORIAL_TEAM: 'editorial_team',
   MARKETING_TEAM: 'marketing_team',
   FACULTY: 'faculty',
-  DNP_TEAM: 'dnp_team',
+  DESIGN_TEAM: 'design_team',
   PRODUCTION_TEAM: 'production_team',
   ADMIN: 'admin',
 };
