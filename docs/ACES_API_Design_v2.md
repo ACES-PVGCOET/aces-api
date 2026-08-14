@@ -1,6 +1,7 @@
 # ACES API - Architectural & Design Specification
 
-This document presents the finalized, refined architectural design for the **ACES API**. It serves as the official technical blueprint for the development team building the backend system for the student association.
+> [!IMPORTANT]
+> **Single Source of Truth Notice**: This document has been updated and superseded by the official, production-grade [API Architectural & Design Specification](file:///home/yashj/cross-root/aces/aces_api/docs/API_DESIGN_DOCS.md). Please refer to [`docs/API_DESIGN_DOCS.md`](file:///home/yashj/cross-root/aces/aces_api/docs/API_DESIGN_DOCS.md) for the definitive system architecture specification.
 
 ---
 

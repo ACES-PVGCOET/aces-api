@@ -200,7 +200,74 @@ Content-Type: application/json
 
 ---
 
-### 5.2 Complete Member Onboarding
+### 5.2 Admin Bulk Register Members via Google Sheet (CSV)
+Bulk registers association members by fetching and parsing a published Google Sheet in CSV format containing `name`, `email`, `team`, and `position` fields. Automatically sends onboarding email invitations for each successfully registered member.
+
+* **Method:** `POST`
+* **Path:** `/api/v1/iam/bulk-register`
+* **Content-Type:** `application/json`
+* **Authorization:** Required (`admin` role via `members.register` authority)
+
+#### Request Parameters
+| Parameter | Type | Required | Description |
+| :--- | :--- | :--- | :--- |
+| `sheet_url` | String | Yes | Published Google Sheet CSV URL (or standard edit link automatically converted to export CSV format). |
+
+#### Request Example
+```http
+POST /api/v1/iam/bulk-register HTTP/1.1
+Host: localhost:5000
+Authorization: Bearer <ADMIN_JWT_TOKEN>
+Content-Type: application/json
+
+{
+  "sheet_url": "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ.../pub?output=csv"
+}
+```
+
+#### Response Example (`201 Created`)
+```json
+{
+  "success": true,
+  "data": {
+    "total": 3,
+    "successfulCount": 2,
+    "failedCount": 1,
+    "successful": [
+      {
+        "id": "66b6512a876543210fedcba9",
+        "name": "Alice Walker",
+        "email": "alice.walker@college.edu",
+        "team": "Web Team",
+        "position": "Head",
+        "status": "NOT_ACTIVE",
+        "roles": ["web_team"]
+      },
+      {
+        "id": "66b6512a876543210fedcbaa",
+        "name": "Bob Vance",
+        "email": "bob.vance@college.edu",
+        "team": "Technical Team",
+        "position": "Member",
+        "status": "NOT_ACTIVE",
+        "roles": ["tech_team"]
+      }
+    ],
+    "failed": [
+      {
+        "row": 4,
+        "email": "duplicate@college.edu",
+        "reason": "A member with this email already exists."
+      }
+    ]
+  },
+  "error": null
+}
+```
+
+---
+
+### 5.3 Complete Member Onboarding
 Public activation endpoint for registered members using the email onboarding token to set their password.
 
 * **Method:** `POST`

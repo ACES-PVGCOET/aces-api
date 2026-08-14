@@ -1,6 +1,7 @@
 # ACES API - Provisional API Documentation (Updated)
 
-This document provides provisional API contracts (endpoints, request/response structures, authentication rules) for the **ACES API**. Frontend developers can use this spec to mock requests and build UI components in parallel with backend development.
+> [!IMPORTANT]
+> **Single Source of Truth Notice**: This document has been updated and superseded by the official, production-grade [API Reference Documentation](file:///home/yashj/cross-root/aces/aces_api/docs/API_DOCS.md). Please refer to [`docs/API_DOCS.md`](file:///home/yashj/cross-root/aces/aces_api/docs/API_DOCS.md) for the definitive API specification.
 
 ---
 
