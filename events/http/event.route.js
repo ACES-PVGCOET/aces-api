@@ -16,6 +16,12 @@ router.get(
 );
 
 router.get(
+  '/highlights',
+  optionalAuthenticate,
+  eventController.getHighlightedEvents,
+);
+
+router.get(
   '/:id',
   optionalAuthenticate,
   eventController.getEventById,

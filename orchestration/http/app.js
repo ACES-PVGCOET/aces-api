@@ -9,6 +9,7 @@ import iamRoutes from '../../iam/http/iam.routes.js';
 import formsRoutes from '../../forms/http/forms.routes.js';
 import announcementsRoutes from '../../announcements/http/announcements.routes.js';
 import galleryRoutes from '../../gallery/http/gallery.routes.js';
+import eventsRoutes from '../../events/http/event.route.js';
 import { sendSuccess } from '../../shared/utils/responseFormatter.js';
 
 const app = express();
@@ -49,6 +50,7 @@ apiV1Router.use('/iam', iamRoutes);
 apiV1Router.use('/forms', formsRoutes);
 apiV1Router.use('/announcements', announcementsRoutes);
 apiV1Router.use('/gallery', galleryRoutes);
+apiV1Router.use('/events', eventsRoutes);
 
 // Mount API Router under /api/v1
 app.use('/api/v1', apiV1Router);

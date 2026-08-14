@@ -5,6 +5,8 @@ export const EventsService = {
 
   listEvents: () => EventInternalService.listEvents(),
 
+  getHighlightedEvents: () => EventInternalService.getHighlightedEvents(),
+
   getEventById: (params) => EventInternalService.getEventById(params),
 
   updateEvent: (params) => EventInternalService.updateEvent(params),

@@ -10,6 +10,7 @@ export const createEvent = asyncHandler(async (req, res) => {
     terms,
     reg_form_id,
     banner_url,
+    isHighlight,
   } = req.body;
 
   if (!overview || !description || !terms) {
@@ -25,6 +26,7 @@ export const createEvent = asyncHandler(async (req, res) => {
       terms,
       reg_form_id,
       banner_url,
+      isHighlight,
     },
     userId: req.user.id,
   });
@@ -34,6 +36,12 @@ export const createEvent = asyncHandler(async (req, res) => {
 
 export const listEvents = asyncHandler(async (_req, res) => {
   const events = await EventsService.listEvents();
+
+  return sendSuccess(res, { events });
+});
+
+export const getHighlightedEvents = asyncHandler(async (_req, res) => {
+  const events = await EventsService.getHighlightedEvents();
 
   return sendSuccess(res, { events });
 });

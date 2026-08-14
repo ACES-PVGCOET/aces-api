@@ -61,6 +61,11 @@ const eventSchema = new mongoose.Schema(
       default: '',
     },
 
+    isHighlight: {
+      type: Boolean,
+      default: false,
+    },
+
     auditing: {
       type: auditingSchema,
       required: true,
