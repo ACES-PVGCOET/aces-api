@@ -1,9 +1,79 @@
 import { Router } from 'express';
-import { getUploadSignature } from './gallery.controller.js';
-import { authenticate, authorize } from '../../orchestration/http/middleware/auth.js';
+import * as galleryController from './gallery.controller.js';
+import {
+  authenticate,
+  optionalAuthenticate,
+  authorize,
+} from '../../orchestration/http/middleware/auth.js';
 
 const router = Router();
 
-router.get('/upload-signature', authenticate, authorize('gallery.upload'), getUploadSignature);
+// Presigned signature generation (Media & Editorial team)
+router.get(
+  '/upload-signature',
+  authenticate,
+  authorize('gallery.upload'),
+  galleryController.getUploadSignature
+);
+
+// Public / Client read endpoints
+router.get(
+  '/showcase',
+  optionalAuthenticate,
+  galleryController.getShowcase
+);
+
+router.get(
+  '/collections',
+  optionalAuthenticate,
+  galleryController.listCollections
+);
+
+router.get(
+  '/collections/:collection_name',
+  optionalAuthenticate,
+  galleryController.getCollectionByName
+);
+
+router.get(
+  '/items',
+  optionalAuthenticate,
+  galleryController.listGalleryItems
+);
+
+router.get(
+  '/items/:id',
+  optionalAuthenticate,
+  galleryController.getGalleryItemById
+);
+
+// Protected endpoints for media_team / editorial_team / admin
+router.post(
+  '/items',
+  authenticate,
+  authorize('gallery.create'),
+  galleryController.createGalleryItem
+);
+
+router.post(
+  '/items/batch',
+  authenticate,
+  authorize('gallery.create'),
+  galleryController.bulkCreateGalleryItems
+);
+
+router.put(
+  '/items/:id',
+  authenticate,
+  authorize('gallery.update'),
+  galleryController.updateGalleryItem
+);
+
+router.delete(
+  '/items/:id',
+  authenticate,
+  authorize('gallery.delete'),
+  galleryController.deleteGalleryItem
+);
 
 export default router;

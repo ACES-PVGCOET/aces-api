@@ -7,6 +7,9 @@ import { AnnouncementModel } from '../../announcements/internal/announcement.mod
 import { Form } from '../../forms/internal/form.model.js';
 import { Question } from '../../forms/internal/question.model.js';
 import { FormResponse } from '../../forms/internal/response.model.js';
+import { EventModel } from '../../events/internal/event.model.js';
+import { GalleryItemModel } from '../../gallery/internal/gallery.model.js';
+import { MemberModel } from '../../iam/internal/member.model.js';
 
 let mongoServer;
 let server;
@@ -42,6 +45,9 @@ export async function clearDatabase() {
       Form.deleteMany({}),
       Question.deleteMany({}),
       FormResponse.deleteMany({}),
+      EventModel.deleteMany({}),
+      GalleryItemModel.deleteMany({}),
+      MemberModel.deleteMany({}),
     ]);
   }
 }
