@@ -19,7 +19,7 @@ export const connectDB = async () => {
       console.info(`[Database] In-Memory MongoDB Connected: ${conn.connection.host}/${conn.connection.name}`);
       return conn;
     } catch (memError) {
-      console.error(`[Database] Connection Error: ${memError.message}`);
+      console.error(`[Database] Failed to initialize database or fallback in-memory server: ${memError.message}`);
       process.exit(1);
     }
   }

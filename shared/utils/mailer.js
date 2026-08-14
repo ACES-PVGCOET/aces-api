@@ -84,11 +84,12 @@ export const sendOnboardingEmail = async ({ email, token, name }) => {
   const onboardingLink = `${config.clientOrigin}/onboard?token=${token}`;
 
   const html = `
-    <h2>Welcome to ACES Association!</h2>
+    <h2>Welcome to ACES!</h2>
     <p>Hello${name ? ` ${name}` : ''},</p>
     <p>An administrator has registered you for membership. Please click the link below to set your password and activate your account:</p>
     <p><a href="${onboardingLink}">${onboardingLink}</a></p>
     <p>This link will expire in 24 hours.</p>
+    <p>If you find any issues, bugs in onboarding report it to Web Team or Technical Team</p>
   `;
 
   console.info(`[Mailer] Onboarding email dispatched to ${email}`);
