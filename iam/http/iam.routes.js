@@ -13,6 +13,7 @@ router.get('/members/:id', optionalAuthenticate, iamController.getMemberById);
 
 // Protected routes (Admin only via authority rules)
 router.post('/register', authenticate, authorize('members.register'), uploadSingle('profile_photo'), iamController.registerMember);
+router.post('/bulk-register', authenticate, authorize('members.register'), iamController.bulkRegisterMembers);
 router.delete('/members/:id', authenticate, authorize('members.delete'), iamController.deleteMember);
 
 // Protected routes (Member self or Admin)

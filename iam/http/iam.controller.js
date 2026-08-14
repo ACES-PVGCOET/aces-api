@@ -13,6 +13,16 @@ export const registerMember = asyncHandler(async (req, res) => {
   return sendSuccess(res, result, 201);
 });
 
+export const bulkRegisterMembers = asyncHandler(async (req, res) => {
+  const sheetUrl = req.body.sheet_url || req.body.url || req.body.sheetUrl;
+  if (!sheetUrl) {
+    throw new ValidationError('Google Sheet URL is required.');
+  }
+
+  const result = await IAMInternalService.bulkRegisterMembers(sheetUrl);
+  return sendSuccess(res, result, 201);
+});
+
 export const completeOnboarding = asyncHandler(async (req, res) => {
   const { token, password, name } = req.body;
   if (!token || !password) {

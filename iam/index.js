@@ -40,6 +40,11 @@ export const IAMService = {
   registerMember: (data) => IAMInternalService.registerMember(data),
 
   /**
+   * Admin bulk registers members via Google Sheet CSV URL
+   */
+  bulkRegisterMembers: (sheetUrl) => IAMInternalService.bulkRegisterMembers(sheetUrl),
+
+  /**
    * Complete member onboarding with token & password
    */
   completeOnboarding: (data) => IAMInternalService.completeOnboarding(data),

@@ -221,6 +221,94 @@ export class IAMInternalService {
     return { message: 'Member successfully removed.' };
   }
 
+  static async bulkRegisterMembers(sheetUrl) {
+    if (!sheetUrl || typeof sheetUrl !== 'string' || !sheetUrl.trim()) {
+      throw new ValidationError('Google Sheet URL is required.');
+    }
+
+    let formattedUrl;
+    try {
+      const parsed = new URL(sheetUrl.trim());
+      if (!['http:', 'https:'].includes(parsed.protocol)) {
+        throw new Error('Invalid protocol');
+      }
+      formattedUrl = formatGoogleSheetCsvUrl(sheetUrl.trim());
+    } catch (_e) {
+      throw new ValidationError('Invalid Google Sheet URL format.');
+    }
+
+    let csvText;
+    try {
+      const response = await fetch(formattedUrl);
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status} ${response.statusText}`);
+      }
+      csvText = await response.text();
+    } catch (err) {
+      throw new ValidationError(`Failed to fetch Google Sheet from URL: ${err.message}`);
+    }
+
+    if (csvText.toLowerCase().includes('<!doctype html>') || csvText.toLowerCase().includes('<html')) {
+      throw new ValidationError('Unable to fetch CSV content from Google Sheet. Ensure the Google Sheet is published to the web in CSV format.');
+    }
+
+    const records = parseCSV(csvText);
+    if (!records || records.length === 0) {
+      throw new ValidationError('The provided CSV sheet is empty or contains no records.');
+    }
+
+    const firstRecord = records[0];
+    if (!('email' in firstRecord) || !('team' in firstRecord) || !('position' in firstRecord)) {
+      throw new ValidationError('CSV sheet header must include email, team, and position columns.');
+    }
+
+    const successful = [];
+    const failed = [];
+
+    for (let i = 0; i < records.length; i++) {
+      const row = records[i];
+      const rowNum = i + 2; // Line 1 is header
+      const { name = '', email = '', team = '', position = '' } = row;
+
+      if (!email.trim()) {
+        failed.push({ row: rowNum, email: '', reason: 'Email is required.' });
+        continue;
+      }
+      if (!team.trim()) {
+        failed.push({ row: rowNum, email: email.trim(), reason: 'Team is required.' });
+        continue;
+      }
+      if (!position.trim()) {
+        failed.push({ row: rowNum, email: email.trim(), reason: 'Position is required.' });
+        continue;
+      }
+
+      try {
+        const registered = await this.registerMember({
+          name: name.trim(),
+          email: email.trim(),
+          team: team.trim(),
+          position: position.trim(),
+        });
+        successful.push(registered);
+      } catch (err) {
+        failed.push({
+          row: rowNum,
+          email: email.trim(),
+          reason: err.message,
+        });
+      }
+    }
+
+    return {
+      total: records.length,
+      successfulCount: successful.length,
+      failedCount: failed.length,
+      successful,
+      failed,
+    };
+  }
+
   static async verifyToken(token) {
     try {
       const decoded = jwt.verify(token, config.jwt.secret);
@@ -260,4 +348,104 @@ export class IAMInternalService {
     return newAdmin.toJSON();
   }
 }
+
+/**
+ * Helper to auto-convert normal Google Sheet view/edit URLs to CSV export format
+ */
+export function formatGoogleSheetCsvUrl(sheetUrl) {
+  const url = sheetUrl.trim();
+  const googleSheetEditMatch = url.match(/^https:\/\/docs\.google\.com\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
+  if (googleSheetEditMatch && !url.includes('/pub') && !url.includes('output=csv')) {
+    const sheetId = googleSheetEditMatch[1];
+    return `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv`;
+  }
+  return url;
+}
+
+/**
+ * Normalizes header names to standard keys ('name', 'email', 'team', 'position')
+ */
+function normalizeHeaderName(h) {
+  const clean = h.trim().toLowerCase();
+  if (clean === 'name' || clean === 'full name' || clean === 'member name') return 'name';
+  if (clean === 'email' || clean === 'email address') return 'email';
+  if (clean === 'team' || clean === 'team name' || clean === 'department') return 'team';
+  if (clean === 'position' || clean === 'designation' || clean === 'role') return 'position';
+  return clean;
+}
+
+/**
+ * Parses raw CSV text into array of record objects
+ */
+export function parseCSV(csvText) {
+  const lines = [];
+  let cur = '';
+  let inQuotes = false;
+
+  for (let i = 0; i < csvText.length; i++) {
+    const char = csvText[i];
+    const nextChar = csvText[i + 1];
+
+    if (char === '"') {
+      inQuotes = !inQuotes;
+      cur += char;
+    } else if ((char === '\r' || char === '\n') && !inQuotes) {
+      if (char === '\r' && nextChar === '\n') {
+        i++;
+      }
+      lines.push(cur);
+      cur = '';
+    } else {
+      cur += char;
+    }
+  }
+  if (cur || csvText.length > 0) {
+    lines.push(cur);
+  }
+
+  const parsedRows = lines
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0)
+    .map((line) => {
+      const row = [];
+      let cell = '';
+      let q = false;
+      for (let i = 0; i < line.length; i++) {
+        const c = line[i];
+        const nc = line[i + 1];
+        if (c === '"') {
+          if (q && nc === '"') {
+            cell += '"';
+            i++;
+          } else {
+            q = !q;
+          }
+        } else if (c === ',' && !q) {
+          row.push(cell.trim());
+          cell = '';
+        } else {
+          cell += c;
+        }
+      }
+      row.push(cell.trim());
+      return row;
+    });
+
+  if (parsedRows.length === 0) return [];
+
+  const rawHeaders = parsedRows[0];
+  const headers = rawHeaders.map(normalizeHeaderName);
+
+  const records = [];
+  for (let i = 1; i < parsedRows.length; i++) {
+    const row = parsedRows[i];
+    const record = {};
+    headers.forEach((header, idx) => {
+      record[header] = row[idx] !== undefined ? row[idx] : '';
+    });
+    records.push(record);
+  }
+  return records;
+}
+
 
