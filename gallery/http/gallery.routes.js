@@ -69,6 +69,13 @@ router.put(
   galleryController.updateGalleryItem
 );
 
+router.put(
+  '/collections/:collection_name',
+  authenticate,
+  authorize('gallery.update'),
+  galleryController.renameCollection
+);
+
 router.delete(
   '/items/:id',
   authenticate,

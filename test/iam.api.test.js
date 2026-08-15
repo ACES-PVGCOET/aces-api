@@ -261,4 +261,68 @@ Eve Adams, eve.adams@aces.org, Marketing Team, Member`;
       assert.match(res.body.data.failed[1].reason, /Invalid team/i);
     });
   });
+
+  describe('Cookie-Based Authentication & Session Endpoints', () => {
+    it('should login member, set HTTP-only cookie, and NOT return token in response body', async () => {
+      // 1. Create a member to test login
+      await request('/api/v1/iam/register', {
+        method: 'POST',
+        token: adminToken,
+        body: {
+          name: 'Session Test User',
+          email: 'session.test@aces.org',
+          team: 'Web Team',
+          position: 'Head',
+        },
+      });
+
+      const { MemberModel } = await import('../iam/internal/member.model.js');
+      const createdMember = await MemberModel.findOne({ email: 'session.test@aces.org' }).select('+onboarding_token');
+      assert.ok(createdMember);
+      assert.ok(createdMember.onboarding_token);
+
+      await request('/api/v1/iam/onboard', {
+        method: 'POST',
+        body: {
+          token: createdMember.onboarding_token,
+          password: 'TestPassword123!',
+        },
+      });
+
+      // 2. Perform Login
+      const loginRes = await request('/api/v1/iam/login', {
+        method: 'POST',
+        body: {
+          email: 'session.test@aces.org',
+          password: 'TestPassword123!',
+        },
+      });
+
+      assert.equal(loginRes.status, 200);
+      assert.equal(loginRes.body.success, true);
+      assert.ok(loginRes.body.data.member);
+      assert.equal(loginRes.body.data.token, undefined, 'Token MUST NOT be present in JSON response body');
+    });
+
+    it('should return current member profile on GET /api/v1/iam/me', async () => {
+      const res = await request('/api/v1/iam/me', {
+        method: 'GET',
+        token: adminToken,
+      });
+
+      assert.equal(res.status, 200);
+      assert.equal(res.body.success, true);
+    });
+
+    it('should successfully clear auth session on POST /api/v1/iam/logout', async () => {
+      const res = await request('/api/v1/iam/logout', {
+        method: 'POST',
+      });
+
+      assert.equal(res.status, 200);
+      assert.equal(res.body.success, true);
+      assert.match(res.body.data.message, /Logged out successfully/i);
+    });
+  });
 });
+

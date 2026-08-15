@@ -3,7 +3,7 @@ import { generateUploadSignature } from '../../shared/utils/cloudinary.js';
 import { ValidationError, NotFoundError } from '../../shared/errors/index.js';
 import { GalleryItemModel } from './gallery.model.js';
 
-const ALLOWED_RESOURCE_TYPES = ['image', 'video', 'raw', 'auto'];
+const ALLOWED_RESOURCE_TYPES = ['image', 'video', 'raw', 'auto', 'pdf'];
 
 export const getUploadSignature = ({ folder, resource_type }) => {
   if (!folder || !resource_type) {
@@ -28,12 +28,16 @@ export const getUploadSignature = ({ folder, resource_type }) => {
 };
 
 export const createGalleryItem = async ({ data, userId }) => {
-  if (!data.media_url || typeof data.media_url !== 'string' || !data.media_url.trim()) {
-    throw new ValidationError('media_url is required.');
+  const mediaUrl = data.url || data.media_url;
+  const mediaType = data.type || data.media_type;
+  const descriptionText = data.description !== undefined ? data.description : data.caption;
+
+  if (!mediaUrl || typeof mediaUrl !== 'string' || !mediaUrl.trim()) {
+    throw new ValidationError('media_url / url is required.');
   }
 
-  if (!data.media_type || !['image', 'video'].includes(data.media_type)) {
-    throw new ValidationError("media_type is required and must be either 'image' or 'video'.");
+  if (!mediaType || !['image', 'video', 'pdf'].includes(mediaType)) {
+    throw new ValidationError("media_type / type is required and must be 'image', 'video', or 'pdf'.");
   }
 
   if (!data.collection_name || typeof data.collection_name !== 'string' || !data.collection_name.trim()) {
@@ -43,9 +47,11 @@ export const createGalleryItem = async ({ data, userId }) => {
   const now = new Date();
   const item = await GalleryItemModel.create({
     title: data.title || '',
-    caption: data.caption || '',
-    media_url: data.media_url.trim(),
-    media_type: data.media_type,
+    caption: descriptionText || '',
+    description: descriptionText || '',
+    media_url: mediaUrl.trim(),
+    cover_image: data.cover_image || data.coverImage || '',
+    media_type: mediaType,
     collection_name: data.collection_name.trim(),
     auditing: {
       created_by: userId,
@@ -73,19 +79,25 @@ export const bulkCreateGalleryItems = async ({ collection_name, items, userId })
 
   for (let idx = 0; idx < items.length; idx++) {
     const item = items[idx];
-    if (!item.media_url || typeof item.media_url !== 'string' || !item.media_url.trim()) {
-      throw new ValidationError(`Item at index ${idx} is missing a valid media_url.`);
+    const mediaUrl = item.url || item.media_url;
+    const mediaType = item.type || item.media_type;
+    const descriptionText = item.description !== undefined ? item.description : item.caption;
+
+    if (!mediaUrl || typeof mediaUrl !== 'string' || !mediaUrl.trim()) {
+      throw new ValidationError(`Item at index ${idx} is missing a valid media_url / url.`);
     }
 
-    if (!item.media_type || !['image', 'video'].includes(item.media_type)) {
-      throw new ValidationError(`Item at index ${idx} must have media_type 'image' or 'video'.`);
+    if (!mediaType || !['image', 'video', 'pdf'].includes(mediaType)) {
+      throw new ValidationError(`Item at index ${idx} must have media_type 'image', 'video', or 'pdf'.`);
     }
 
     docsToInsert.push({
       title: item.title || '',
-      caption: item.caption || '',
-      media_url: item.media_url.trim(),
-      media_type: item.media_type,
+      caption: descriptionText || '',
+      description: descriptionText || '',
+      media_url: mediaUrl.trim(),
+      cover_image: item.cover_image || item.coverImage || '',
+      media_type: mediaType,
       collection_name: trimmedCollection,
       auditing: {
         created_by: userId,
@@ -115,6 +127,8 @@ export const getShowcase = async () => {
         total_items: 0,
         photos_count: 0,
         videos_count: 0,
+        pdfs_count: 0,
+        cover_image: itemJSON.cover_image || itemJSON.url || itemJSON.media_url || '',
         items: [],
       });
     }
@@ -125,6 +139,8 @@ export const getShowcase = async () => {
       colGroup.photos_count += 1;
     } else if (itemJSON.media_type === 'video') {
       colGroup.videos_count += 1;
+    } else if (itemJSON.media_type === 'pdf') {
+      colGroup.pdfs_count += 1;
     }
     colGroup.items.push(itemJSON);
   }
@@ -152,10 +168,12 @@ export const getCollectionByName = async ({ collection_name }) => {
   const actualName = itemJSONs[0].collection_name;
   let photosCount = 0;
   let videosCount = 0;
+  let pdfsCount = 0;
 
   for (const item of itemJSONs) {
     if (item.media_type === 'image') photosCount++;
     if (item.media_type === 'video') videosCount++;
+    if (item.media_type === 'pdf') pdfsCount++;
   }
 
   return {
@@ -163,6 +181,7 @@ export const getCollectionByName = async ({ collection_name }) => {
     total_items: itemJSONs.length,
     photos_count: photosCount,
     videos_count: videosCount,
+    pdfs_count: pdfsCount,
     items: itemJSONs,
   };
 };
@@ -182,7 +201,8 @@ export const listCollections = async () => {
         total_items: 0,
         photos_count: 0,
         videos_count: 0,
-        cover_url: itemJSON.media_url,
+        pdfs_count: 0,
+        cover_url: itemJSON.cover_image || itemJSON.media_url,
       });
     }
 
@@ -192,11 +212,53 @@ export const listCollections = async () => {
       colGroup.photos_count += 1;
     } else if (itemJSON.media_type === 'video') {
       colGroup.videos_count += 1;
+    } else if (itemJSON.media_type === 'pdf') {
+      colGroup.pdfs_count += 1;
     }
   }
 
   return {
     collections: Array.from(collectionsMap.values()),
+  };
+};
+
+export const renameCollection = async ({ collection_name, new_collection_name, userId }) => {
+  if (!collection_name || typeof collection_name !== 'string' || !collection_name.trim()) {
+    throw new ValidationError('collection_name parameter is required.');
+  }
+
+  if (!new_collection_name || typeof new_collection_name !== 'string' || !new_collection_name.trim()) {
+    throw new ValidationError('new_collection_name parameter is required.');
+  }
+
+  const oldName = collection_name.trim();
+  const newName = new_collection_name.trim();
+
+  const matchingItems = await GalleryItemModel.find({
+    collection_name: { $regex: new RegExp(`^${oldName}$`, 'i') },
+  });
+
+  if (!matchingItems || matchingItems.length === 0) {
+    throw new NotFoundError(`No collection found with name '${collection_name}'.`);
+  }
+
+  const now = new Date();
+  await GalleryItemModel.updateMany(
+    { collection_name: { $regex: new RegExp(`^${oldName}$`, 'i') } },
+    {
+      $set: {
+        collection_name: newName,
+        'auditing.updated_by': userId,
+        'auditing.updated_at': now,
+      },
+    }
+  );
+
+  return {
+    message: `Collection successfully renamed from '${oldName}' to '${newName}'.`,
+    old_collection_name: oldName,
+    new_collection_name: newName,
+    items_updated: matchingItems.length,
   };
 };
 
@@ -207,11 +269,12 @@ export const listGalleryItems = async (query = {}) => {
     filter.collection_name = { $regex: new RegExp(`^${query.collection_name.trim()}$`, 'i') };
   }
 
-  if (query.media_type) {
-    if (!['image', 'video'].includes(query.media_type)) {
-      throw new ValidationError("media_type must be either 'image' or 'video'.");
+  if (query.media_type || query.type) {
+    const typeVal = query.media_type || query.type;
+    if (!['image', 'video', 'pdf'].includes(typeVal)) {
+      throw new ValidationError("media_type / type must be 'image', 'video', or 'pdf'.");
     }
-    filter.media_type = query.media_type;
+    filter.media_type = typeVal;
   }
 
   const items = await GalleryItemModel.find(filter).sort({ 'auditing.created_at': -1 });
@@ -244,20 +307,27 @@ export const updateGalleryItem = async ({ id, data, userId }) => {
   if (data.title !== undefined) {
     item.title = data.title;
   }
-  if (data.caption !== undefined) {
-    item.caption = data.caption;
+  if (data.caption !== undefined || data.description !== undefined) {
+    const descText = data.description !== undefined ? data.description : data.caption;
+    item.caption = descText;
+    item.description = descText;
   }
-  if (data.media_url !== undefined) {
-    if (typeof data.media_url !== 'string' || !data.media_url.trim()) {
-      throw new ValidationError('media_url cannot be empty.');
+  if (data.media_url !== undefined || data.url !== undefined) {
+    const urlVal = data.url !== undefined ? data.url : data.media_url;
+    if (typeof urlVal !== 'string' || !urlVal.trim()) {
+      throw new ValidationError('media_url / url cannot be empty.');
     }
-    item.media_url = data.media_url.trim();
+    item.media_url = urlVal.trim();
   }
-  if (data.media_type !== undefined) {
-    if (!['image', 'video'].includes(data.media_type)) {
-      throw new ValidationError("media_type must be either 'image' or 'video'.");
+  if (data.cover_image !== undefined || data.coverImage !== undefined) {
+    item.cover_image = data.cover_image !== undefined ? data.cover_image : data.coverImage;
+  }
+  if (data.media_type !== undefined || data.type !== undefined) {
+    const typeVal = data.type !== undefined ? data.type : data.media_type;
+    if (!['image', 'video', 'pdf'].includes(typeVal)) {
+      throw new ValidationError("media_type / type must be 'image', 'video', or 'pdf'.");
     }
-    item.media_type = data.media_type;
+    item.media_type = typeVal;
   }
   if (data.collection_name !== undefined) {
     if (typeof data.collection_name !== 'string' || !data.collection_name.trim()) {

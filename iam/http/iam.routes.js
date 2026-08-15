@@ -8,7 +8,11 @@ const router = Router();
 // Public routes
 router.post('/onboard', iamController.completeOnboarding);
 router.post('/login', iamController.loginMember);
+router.post('/logout', iamController.logoutMember);
 router.get('/members', optionalAuthenticate, iamController.listMembers);
+
+// Protected routes (Session context)
+router.get('/me', authenticate, iamController.getCurrentUser);
 router.get('/members/:id', optionalAuthenticate, iamController.getMemberById);
 
 // Protected routes (Admin only via authority rules)

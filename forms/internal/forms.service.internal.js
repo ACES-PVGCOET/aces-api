@@ -160,12 +160,23 @@ export class FormsInternalService {
       Form.countDocuments(filter),
     ]);
 
+    const formIds = forms.map((f) => f._id);
+    const responseCounts = await FormResponse.aggregate([
+      { $match: { form_id: { $in: formIds } } },
+      { $group: { _id: '$form_id', count: { $sum: 1 } } },
+    ]);
+    const responseCountMap = new Map();
+    responseCounts.forEach((rc) => {
+      responseCountMap.set(String(rc._id), rc.count);
+    });
+
     const formattedForms = forms.map((f) => ({
       form_id: f._id,
       title: f.title,
       description: f.description,
       is_active: f.is_active,
       question_count: f.question_ids ? f.question_ids.length : 0,
+      response_count: responseCountMap.get(String(f._id)) || 0,
       created_at: f.createdAt,
     }));
 
@@ -367,6 +378,17 @@ export class FormsInternalService {
       .sort({ submitted_at: -1 })
       .lean();
 
+    // Fetch member details for non-null member_ids
+    const memberIds = [...new Set(responses.map((r) => r.member_id).filter(Boolean))];
+    let memberMap = new Map();
+    if (memberIds.length > 0) {
+      const members = await mongoose.model('Member')
+        .find({ _id: { $in: memberIds } })
+        .select('name email team position')
+        .lean();
+      members.forEach((m) => memberMap.set(String(m._id), m));
+    }
+
     const formattedResponses = responses.map((r) => {
       let ansObj = {};
       if (r.answers instanceof Map) {
@@ -374,10 +396,18 @@ export class FormsInternalService {
       } else if (r.answers && typeof r.answers === 'object') {
         ansObj = r.answers;
       }
+      const memberDoc = r.member_id ? memberMap.get(String(r.member_id)) : null;
       return {
         response_id: r._id,
         form_id: r.form_id,
         member_id: r.member_id,
+        submitted_by: memberDoc ? {
+          id: memberDoc._id,
+          name: memberDoc.name,
+          email: memberDoc.email,
+          team: memberDoc.team,
+          position: memberDoc.position,
+        } : null,
         answers: ansObj,
         submitted_at: r.submitted_at,
       };
@@ -404,6 +434,23 @@ export class FormsInternalService {
       throw new NotFoundError('Form response not found.');
     }
 
+    let submitted_by = null;
+    if (response.member_id && mongoose.Types.ObjectId.isValid(response.member_id)) {
+      const member = await mongoose.model('Member')
+        .findById(response.member_id)
+        .select('name email team position')
+        .lean();
+      if (member) {
+        submitted_by = {
+          id: member._id,
+          name: member.name,
+          email: member.email,
+          team: member.team,
+          position: member.position,
+        };
+      }
+    }
+
     let ansObj = {};
     if (response.answers instanceof Map) {
       ansObj = Object.fromEntries(response.answers);
@@ -415,6 +462,7 @@ export class FormsInternalService {
       response_id: response._id,
       form_id: response.form_id,
       member_id: response.member_id,
+      submitted_by,
       answers: ansObj,
       submitted_at: response.submitted_at,
     };

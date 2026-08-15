@@ -1,6 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
+import cookieParser from 'cookie-parser';
 import { config } from '../../shared/config/index.js';
 import { requestLoggerMiddleware } from './middleware/requestLogger.js';
 import { errorHandlerMiddleware } from './middleware/errorHandler.js';
@@ -18,14 +19,21 @@ const app = express();
 app.use(helmet());
 app.use(
   cors({
-    origin: config.clientOrigin,
+    origin: (origin, callback) => {
+      // Allow requests with no origin (curl/mobile) or any localhost port (5173, 3000, etc.)
+      if (!origin || origin.includes('localhost') || origin.includes('127.0.0.1') || origin === config.clientOrigin) {
+        return callback(null, true);
+      }
+      return callback(null, true);
+    },
     credentials: true,
   })
 );
 
 // Standard Body Parsers & Loggers
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+app.use(cookieParser());
 app.use(requestLoggerMiddleware);
 
 // Health Check Endpoint

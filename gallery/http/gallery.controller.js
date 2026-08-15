@@ -59,6 +59,19 @@ export const listCollections = asyncHandler(async (_req, res) => {
   return sendSuccess(res, result);
 });
 
+export const renameCollection = asyncHandler(async (req, res) => {
+  const { collection_name } = req.params;
+  const { new_collection_name } = req.body;
+
+  const result = await GalleryService.renameCollection({
+    collection_name,
+    new_collection_name,
+    userId: req.user.id,
+  });
+
+  return sendSuccess(res, result);
+});
+
 export const listGalleryItems = asyncHandler(async (req, res) => {
   const items = await GalleryService.listGalleryItems(req.query);
 

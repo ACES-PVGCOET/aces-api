@@ -1,7 +1,7 @@
 import { IAMInternalService } from '../internal/iam.service.internal.js';
 import { asyncHandler } from '../../shared/utils/asyncHandler.js';
 import { sendSuccess } from '../../shared/utils/responseFormatter.js';
-import { ValidationError, ForbiddenError } from '../../shared/errors/index.js';
+import { ValidationError, ForbiddenError, UnauthorizedError } from '../../shared/errors/index.js';
 
 export const registerMember = asyncHandler(async (req, res) => {
   const { email, team, position } = req.body;
@@ -44,10 +44,40 @@ export const loginMember = asyncHandler(async (req, res) => {
   res.cookie('auth_token', token, {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
+    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
     maxAge: 7 * 24 * 60 * 60 * 1000,
   });
 
   return sendSuccess(res, { member });
+});
+
+export const logoutMember = asyncHandler(async (req, res) => {
+  res.clearCookie('auth_token', {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+  });
+  return sendSuccess(res, { message: 'Logged out successfully' });
+});
+
+export const getCurrentUser = asyncHandler(async (req, res) => {
+  if (!req.user || !req.user.id) {
+    throw new UnauthorizedError('Not authenticated');
+  }
+  try {
+    const member = await IAMInternalService.getMemberById(req.user.id);
+    return sendSuccess(res, member);
+  } catch (_err) {
+    return sendSuccess(res, {
+      _id: req.user.id,
+      id: req.user.id,
+      email: req.user.email,
+      name: req.user.name || (req.user.email ? req.user.email.split('@')[0] : 'Member'),
+      team: req.user.team || 'Web Team',
+      position: req.user.position || 'Member',
+      roles: req.user.roles || ['member'],
+    });
+  }
 });
 
 export const getMemberById = asyncHandler(async (req, res) => {
@@ -77,4 +107,5 @@ export const deleteMember = asyncHandler(async (req, res) => {
   const result = await IAMInternalService.deleteMember(req.params.id);
   return sendSuccess(res, result);
 });
+
 

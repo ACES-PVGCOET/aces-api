@@ -38,17 +38,27 @@ const galleryItemSchema = new mongoose.Schema(
       trim: true,
       default: '',
     },
+    description: {
+      type: String,
+      trim: true,
+      default: '',
+    },
     media_url: {
       type: String,
       required: [true, 'Media URL is required'],
       trim: true,
     },
+    cover_image: {
+      type: String,
+      trim: true,
+      default: '',
+    },
     media_type: {
       type: String,
       required: [true, 'Media type is required'],
       enum: {
-        values: ['image', 'video'],
-        message: "Media type must be either 'image' or 'video'",
+        values: ['image', 'video', 'pdf'],
+        message: "Media type must be 'image', 'video', or 'pdf'",
       },
       trim: true,
     },
@@ -68,6 +78,9 @@ const galleryItemSchema = new mongoose.Schema(
     toJSON: {
       transform(_doc, ret) {
         ret.id = ret._id.toString();
+        ret.url = ret.media_url;
+        ret.type = ret.media_type;
+        ret.description = ret.description || ret.caption || '';
         delete ret._id;
         delete ret.__v;
         return ret;
