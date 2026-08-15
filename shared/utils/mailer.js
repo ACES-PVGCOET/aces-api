@@ -13,19 +13,35 @@ const getTransporter = async () => {
   }
 
   if (config.smtp.host && config.smtp.user) {
-    transporter = nodemailer.createTransport({
-      host: config.smtp.host,
-      port: config.smtp.port,
-      secure: config.smtp.secure,
-      auth: {
-        user: config.smtp.user,
-        pass: config.smtp.pass,
-      },
-      connectionTimeout: 10000,
-      greetingTimeout: 5000,
-      socketTimeout: 10000,
-    });
-    console.info(`[Mailer] Initialized SMTP transporter for host: ${config.smtp.host}`);
+    const isGmail = config.smtp.host.includes('gmail');
+
+    if (isGmail) {
+      transporter = nodemailer.createTransport({
+        service: 'gmail',
+        auth: {
+          user: config.smtp.user,
+          pass: config.smtp.pass,
+        },
+        connectionTimeout: 15000,
+        greetingTimeout: 10000,
+        socketTimeout: 15000,
+      });
+      console.info(`[Mailer] Initialized Gmail service transporter for ${config.smtp.user}`);
+    } else {
+      transporter = nodemailer.createTransport({
+        host: config.smtp.host,
+        port: config.smtp.port,
+        secure: config.smtp.secure || config.smtp.port === 465,
+        auth: {
+          user: config.smtp.user,
+          pass: config.smtp.pass,
+        },
+        connectionTimeout: 15000,
+        greetingTimeout: 10000,
+        socketTimeout: 15000,
+      });
+      console.info(`[Mailer] Initialized SMTP transporter for host: ${config.smtp.host}:${config.smtp.port}`);
+    }
   } else if (config.env === 'test') {
     transporter = nodemailer.createTransport({ jsonTransport: true });
   } else {
