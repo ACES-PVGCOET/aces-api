@@ -21,6 +21,9 @@ const getTransporter = async () => {
         user: config.smtp.user,
         pass: config.smtp.pass,
       },
+      connectionTimeout: 10000,
+      greetingTimeout: 5000,
+      socketTimeout: 10000,
     });
     console.info(`[Mailer] Initialized SMTP transporter for host: ${config.smtp.host}`);
   } else if (config.env === 'test') {
@@ -36,6 +39,9 @@ const getTransporter = async () => {
           user: testAccount.user,
           pass: testAccount.pass,
         },
+        connectionTimeout: 10000,
+        greetingTimeout: 5000,
+        socketTimeout: 10000,
       });
       console.info(`[Mailer] SMTP credentials not set. Initialized Ethereal test account: ${testAccount.user}`);
     } catch (_err) {
@@ -51,30 +57,38 @@ const getTransporter = async () => {
  * Generic email sending function using Nodemailer.
  */
 export const sendMail = async ({ to, subject, html, text, from }) => {
-  const mailTransporter = await getTransporter();
+  try {
+    const mailTransporter = await getTransporter();
 
-  const mailOptions = {
-    from: from || config.smtp.from,
-    to,
-    subject,
-    html,
-    text: text || html.replace(/<[^>]*>?/gm, ''),
-  };
+    const mailOptions = {
+      from: from || config.smtp.from,
+      to,
+      subject,
+      html,
+      text: text || html.replace(/<[^>]*>?/gm, ''),
+    };
 
-  const info = await mailTransporter.sendMail(mailOptions);
-  const previewUrl = nodemailer.getTestMessageUrl(info);
+    const info = await mailTransporter.sendMail(mailOptions);
+    const previewUrl = nodemailer.getTestMessageUrl(info);
 
-  console.info(`[Mailer] Email dispatched to ${to} (MessageID: ${info.messageId})`);
-  if (previewUrl) {
-    console.info(`[Mailer] Preview URL: ${previewUrl}`);
+    console.info(`[Mailer] Email dispatched to ${to} (MessageID: ${info.messageId})`);
+    if (previewUrl) {
+      console.info(`[Mailer] Preview URL: ${previewUrl}`);
+    }
+
+    return {
+      success: true,
+      messageId: info.messageId,
+      previewUrl: previewUrl || null,
+      info,
+    };
+  } catch (error) {
+    console.error(`[Mailer] Error dispatching email to ${to}:`, error.message);
+    return {
+      success: false,
+      error: error.message,
+    };
   }
-
-  return {
-    success: true,
-    messageId: info.messageId,
-    previewUrl: previewUrl || null,
-    info,
-  };
 };
 
 /**
@@ -92,17 +106,26 @@ export const sendOnboardingEmail = async ({ email, token, name }) => {
     <p>If you find any issues, bugs in onboarding report it to Web Team or Technical Team</p>
   `;
 
-  console.info(`[Mailer] Onboarding email dispatched to ${email}`);
+  console.info(`[Mailer] Onboarding email dispatch initiated for ${email}`);
   console.info(`[Mailer] Onboarding Link: ${onboardingLink}`);
 
-  const result = await sendMail({
-    to: email,
-    subject: 'Welcome to ACES - Complete Your Membership Registration',
-    html,
-  });
+  try {
+    const result = await sendMail({
+      to: email,
+      subject: 'Welcome to ACES - Complete Your Membership Registration',
+      html,
+    });
 
-  return {
-    ...result,
-    onboardingLink,
-  };
+    return {
+      ...result,
+      onboardingLink,
+    };
+  } catch (error) {
+    console.error(`[Mailer] Failed to send onboarding email to ${email}:`, error.message);
+    return {
+      success: false,
+      error: error.message,
+      onboardingLink,
+    };
+  }
 };

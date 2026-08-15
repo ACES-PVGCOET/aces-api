@@ -59,14 +59,21 @@ export class IAMInternalService {
       onboarding_token_expires_at: onboardingTokenExpiresAt,
     });
 
-    // Send onboarding email notification
-    await sendOnboardingEmail({
-      email: member.email,
-      token: onboardingToken,
-      name: member.name,
-    });
+    // Send onboarding email notification (safeguarded against mail delivery / timeout errors)
+    try {
+      await sendOnboardingEmail({
+        email: member.email,
+        token: onboardingToken,
+        name: member.name,
+      });
+    } catch (emailErr) {
+      console.error(`[IAM] Failed to dispatch onboarding email to ${member.email}:`, emailErr.message);
+    }
 
-    return member.toJSON();
+    return {
+      ...member.toJSON(),
+      onboarding_token: onboardingToken,
+    };
   }
 
   static async completeOnboarding({ token, password, name }) {
