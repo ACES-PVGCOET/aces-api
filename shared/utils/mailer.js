@@ -1,67 +1,81 @@
 import nodemailer from 'nodemailer';
+import { Resend } from 'resend';
 import { config } from '../config/index.js';
 
-let transporter = null;
+let resendClient = null;
+let fallbackTransporter = null;
 
 /**
- * Lazy initialization helper to return a singleton Nodemailer transporter.
- * Uses configured SMTP credentials if provided, otherwise falls back to Ethereal test transport or JSON transport.
+ * Returns a Resend HTTP client if RESEND_API_KEY is configured.
+ * This is the recommended provider for cloud deployments (uses HTTPS port 443,
+ * which is never blocked by cloud platforms like Render).
  */
-const getTransporter = async () => {
-  if (transporter) {
-    return transporter;
+const getResendClient = () => {
+  if (!config.resend?.apiKey) return null;
+  if (!resendClient) {
+    resendClient = new Resend(config.resend.apiKey);
+    console.info('[Mailer] Initialized Resend HTTP email client.');
   }
-
-  if (config.smtp.host && config.smtp.user) {
-    const isGmail = config.smtp.host.includes('gmail');
-
-    transporter = nodemailer.createTransport({
-      host: isGmail ? 'smtp.gmail.com' : config.smtp.host,
-      port: isGmail ? 465 : (config.smtp.port || 465),
-      secure: isGmail ? true : (config.smtp.secure || config.smtp.port === 465),
-      family: 4, // Force IPv4 to prevent ENETUNREACH on cloud environments (like Render) without IPv6 support
-      auth: {
-        user: config.smtp.user,
-        pass: config.smtp.pass,
-      },
-      connectionTimeout: 15000,
-      greetingTimeout: 10000,
-      socketTimeout: 15000,
-    });
-    console.info(`[Mailer] Initialized IPv4 SMTP transporter for host: ${isGmail ? 'smtp.gmail.com:465' : `${config.smtp.host}:${config.smtp.port}`}`);
-  } else if (config.env === 'test') {
-    transporter = nodemailer.createTransport({ jsonTransport: true });
-  } else {
-    try {
-      const testAccount = await nodemailer.createTestAccount();
-      transporter = nodemailer.createTransport({
-        host: 'smtp.ethereal.email',
-        port: 587,
-        secure: false,
-        auth: {
-          user: testAccount.user,
-          pass: testAccount.pass,
-        },
-        connectionTimeout: 10000,
-        greetingTimeout: 5000,
-        socketTimeout: 10000,
-      });
-      console.info(`[Mailer] SMTP credentials not set. Initialized Ethereal test account: ${testAccount.user}`);
-    } catch (_err) {
-      transporter = nodemailer.createTransport({ jsonTransport: true });
-      console.info('[Mailer] Falling back to JSON Transport for local mail operations.');
-    }
-  }
-
-  return transporter;
+  return resendClient;
 };
 
 /**
- * Generic email sending function using Nodemailer.
+ * Lazy initialization helper to return a Nodemailer transporter.
+ * Used only as a fallback when RESEND_API_KEY is not configured (e.g. local dev).
+ */
+const getFallbackTransporter = async () => {
+  if (fallbackTransporter) return fallbackTransporter;
+
+  if (config.env === 'test') {
+    fallbackTransporter = nodemailer.createTransport({ jsonTransport: true });
+  } else {
+    try {
+      const testAccount = await nodemailer.createTestAccount();
+      fallbackTransporter = nodemailer.createTransport({
+        host: 'smtp.ethereal.email',
+        port: 587,
+        secure: false,
+        auth: { user: testAccount.user, pass: testAccount.pass },
+      });
+      console.info(`[Mailer] Fallback: Initialized Ethereal test account: ${testAccount.user}`);
+    } catch (_err) {
+      fallbackTransporter = nodemailer.createTransport({ jsonTransport: true });
+      console.info('[Mailer] Fallback: Using JSON Transport for local mail operations.');
+    }
+  }
+
+  return fallbackTransporter;
+};
+
+/**
+ * Generic email sending function.
+ * Uses Resend HTTP API when RESEND_API_KEY is configured (recommended for cloud/Render).
+ * Falls back to Nodemailer/Ethereal for local development.
  */
 export const sendMail = async ({ to, subject, html, text, from }) => {
   try {
-    const mailTransporter = await getTransporter();
+    const resend = getResendClient();
+
+    if (resend) {
+      // --- Resend HTTP API path (cloud-safe, uses HTTPS port 443) ---
+      const { data, error } = await resend.emails.send({
+        from: from || config.resend.from,
+        to: Array.isArray(to) ? to : [to],
+        subject,
+        html,
+        text: text || html.replace(/<[^>]*>?/gm, ''),
+      });
+
+      if (error) {
+        throw new Error(error.message || 'Resend API error');
+      }
+
+      console.info(`[Mailer] Email dispatched via Resend to ${to} (ID: ${data.id})`);
+      return { success: true, messageId: data.id };
+    }
+
+    // --- Nodemailer fallback path (local dev / no Resend key) ---
+    const mailTransporter = await getFallbackTransporter();
 
     const mailOptions = {
       from: from || config.smtp.from,
@@ -74,7 +88,7 @@ export const sendMail = async ({ to, subject, html, text, from }) => {
     const info = await mailTransporter.sendMail(mailOptions);
     const previewUrl = nodemailer.getTestMessageUrl(info);
 
-    console.info(`[Mailer] Email dispatched to ${to} (MessageID: ${info.messageId})`);
+    console.info(`[Mailer] Email dispatched via Nodemailer to ${to} (MessageID: ${info.messageId})`);
     if (previewUrl) {
       console.info(`[Mailer] Preview URL: ${previewUrl}`);
     }
@@ -87,10 +101,7 @@ export const sendMail = async ({ to, subject, html, text, from }) => {
     };
   } catch (error) {
     console.error(`[Mailer] Error dispatching email to ${to}:`, error.message);
-    return {
-      success: false,
-      error: error.message,
-    };
+    return { success: false, error: error.message };
   }
 };
 

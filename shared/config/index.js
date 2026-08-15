@@ -38,4 +38,8 @@ export const config = {
     pass: trimQuotes(process.env.SMTP_PASS) || '',
     from: trimQuotes(process.env.SMTP_FROM) || 'ACES Association <noreply@aces.org>',
   },
+  resend: {
+    apiKey: trimQuotes(process.env.RESEND_API_KEY) || '',
+    from: trimQuotes(process.env.RESEND_FROM) || 'ACES Association <onboarding@resend.dev>',
+  },
 };
