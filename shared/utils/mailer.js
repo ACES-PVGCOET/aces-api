@@ -15,33 +15,20 @@ const getTransporter = async () => {
   if (config.smtp.host && config.smtp.user) {
     const isGmail = config.smtp.host.includes('gmail');
 
-    if (isGmail) {
-      transporter = nodemailer.createTransport({
-        service: 'gmail',
-        auth: {
-          user: config.smtp.user,
-          pass: config.smtp.pass,
-        },
-        connectionTimeout: 15000,
-        greetingTimeout: 10000,
-        socketTimeout: 15000,
-      });
-      console.info(`[Mailer] Initialized Gmail service transporter for ${config.smtp.user}`);
-    } else {
-      transporter = nodemailer.createTransport({
-        host: config.smtp.host,
-        port: config.smtp.port,
-        secure: config.smtp.secure || config.smtp.port === 465,
-        auth: {
-          user: config.smtp.user,
-          pass: config.smtp.pass,
-        },
-        connectionTimeout: 15000,
-        greetingTimeout: 10000,
-        socketTimeout: 15000,
-      });
-      console.info(`[Mailer] Initialized SMTP transporter for host: ${config.smtp.host}:${config.smtp.port}`);
-    }
+    transporter = nodemailer.createTransport({
+      host: isGmail ? 'smtp.gmail.com' : config.smtp.host,
+      port: isGmail ? 465 : (config.smtp.port || 465),
+      secure: isGmail ? true : (config.smtp.secure || config.smtp.port === 465),
+      family: 4, // Force IPv4 to prevent ENETUNREACH on cloud environments (like Render) without IPv6 support
+      auth: {
+        user: config.smtp.user,
+        pass: config.smtp.pass,
+      },
+      connectionTimeout: 15000,
+      greetingTimeout: 10000,
+      socketTimeout: 15000,
+    });
+    console.info(`[Mailer] Initialized IPv4 SMTP transporter for host: ${isGmail ? 'smtp.gmail.com:465' : `${config.smtp.host}:${config.smtp.port}`}`);
   } else if (config.env === 'test') {
     transporter = nodemailer.createTransport({ jsonTransport: true });
   } else {
