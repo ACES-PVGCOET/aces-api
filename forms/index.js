@@ -34,7 +34,12 @@ export const FormsService = {
   /**
    * Submits a form response with validation
    */
-  submitResponse: (formId, memberId, answers) => FormsInternalService.submitResponse(formId, memberId, answers),
+  submitResponse: (formId, memberId, answers, email) => FormsInternalService.submitResponse(formId, memberId, answers, email),
+
+  /**
+   * Checks whether a response exists for a specific email
+   */
+  checkResponseExists: (formId, email) => FormsInternalService.checkResponseExists(formId, email),
 
   /**
    * Gets all responses for a form

@@ -340,6 +340,7 @@ describe('Forms Module API Tests', () => {
       const res = await request(`/api/v1/forms/${formId}/responses`, {
         method: 'POST',
         body: {
+          email: 'user1@example.com',
           answers: { '1': ['Team Alpha'], '2': ['AI/ML'] },
         },
       });
@@ -349,10 +350,60 @@ describe('Forms Module API Tests', () => {
       assert.ok(res.body.error.message.includes('closed'));
     });
 
+    it('should reject response submission missing filler email with 400 Bad Request', async () => {
+      const res = await request(`/api/v1/forms/${formId}/responses`, {
+        method: 'POST',
+        body: {
+          answers: { '1': ['Team Alpha'], '2': ['AI/ML'] },
+        },
+      });
+
+      assert.equal(res.status, 400);
+      assert.equal(res.body.error.code, 'INVALID_INPUT');
+      assert.ok(res.body.error.message.includes('email is required'));
+    });
+
+    it('should reject response submission with invalid filler email format with 400 Bad Request', async () => {
+      const res = await request(`/api/v1/forms/${formId}/responses`, {
+        method: 'POST',
+        body: {
+          email: 'not-an-email',
+          answers: { '1': ['Team Alpha'], '2': ['AI/ML'] },
+        },
+      });
+
+      assert.equal(res.status, 400);
+      assert.equal(res.body.error.code, 'INVALID_INPUT');
+      assert.ok(res.body.error.message.includes('valid email address'));
+    });
+
+    it('should reject duplicate response submission with same email on same form', async () => {
+      const firstRes = await request(`/api/v1/forms/${formId}/responses`, {
+        method: 'POST',
+        body: {
+          email: 'unique@example.com',
+          answers: { '1': ['Team One'], '2': ['AI/ML'] },
+        },
+      });
+      assert.equal(firstRes.status, 201);
+
+      const secondRes = await request(`/api/v1/forms/${formId}/responses`, {
+        method: 'POST',
+        body: {
+          email: 'unique@example.com',
+          answers: { '1': ['Team Two'], '2': ['Web Arch'] },
+        },
+      });
+      assert.equal(secondRes.status, 400);
+      assert.equal(secondRes.body.error.code, 'INVALID_INPUT');
+      assert.ok(secondRes.body.error.message.includes('already been submitted'));
+    });
+
     it('should reject response when required question is missing with 400 Bad Request', async () => {
       const res = await request(`/api/v1/forms/${formId}/responses`, {
         method: 'POST',
         body: {
+          email: 'user2@example.com',
           answers: { '2': ['AI/ML'] },
         },
       });
@@ -366,6 +417,7 @@ describe('Forms Module API Tests', () => {
       const res = await request(`/api/v1/forms/${formId}/responses`, {
         method: 'POST',
         body: {
+          email: 'user3@example.com',
           answers: {
             '1': ['This Team Name Exceeds The Twenty Character Max Length'],
             '2': ['AI/ML'],
@@ -382,6 +434,7 @@ describe('Forms Module API Tests', () => {
       const res = await request(`/api/v1/forms/${formId}/responses`, {
         method: 'POST',
         body: {
+          email: 'user4@example.com',
           answers: {
             '1': ['Team Code'],
             '2': ['AI/ML', 'Web Arch'],
@@ -398,6 +451,7 @@ describe('Forms Module API Tests', () => {
       const res = await request(`/api/v1/forms/${formId}/responses`, {
         method: 'POST',
         body: {
+          email: 'user5@example.com',
           answers: {
             '1': ['Team Code'],
             '2': ['Unallowed Track Option'],
@@ -414,6 +468,7 @@ describe('Forms Module API Tests', () => {
       const res = await request(`/api/v1/forms/${formId}/responses`, {
         method: 'POST',
         body: {
+          email: 'user6@example.com',
           answers: {
             '1': ['Team Code'],
             '2': ['AI/ML'],
@@ -431,6 +486,7 @@ describe('Forms Module API Tests', () => {
       const res = await request(`/api/v1/forms/${formId}/responses`, {
         method: 'POST',
         body: {
+          email: 'anon@example.com',
           answers: {
             '1': ['Team Binary'],
             '2': ['Web Arch'],
@@ -443,13 +499,15 @@ describe('Forms Module API Tests', () => {
       assert.equal(res.body.success, true);
       assert.ok(res.body.data.response_id);
       assert.equal(res.body.data.form_id, formId);
+      assert.equal(res.body.data.email, 'anon@example.com');
     });
 
-    it('should successfully accept valid response from logged-in member and attach member_id', async () => {
+    it('should successfully accept valid response from logged-in member and attach member_id and email', async () => {
       const res = await request(`/api/v1/forms/${formId}/responses`, {
         method: 'POST',
         token: memberToken,
         body: {
+          email: 'member@example.com',
           answers: {
             '1': ['Team Cyber'],
             '2': ['Cybersecurity'],
@@ -460,6 +518,47 @@ describe('Forms Module API Tests', () => {
       assert.equal(res.status, 201);
       assert.equal(res.body.success, true);
       assert.ok(res.body.data.response_id);
+      assert.equal(res.body.data.email, 'member@example.com');
+    });
+  });
+
+  describe('GET /api/v1/forms/:form_id/responses/check (Check Response Existence)', () => {
+    let formId;
+
+    beforeEach(async () => {
+      const createRes = await request('/api/v1/forms', {
+        method: 'POST',
+        token: eventTeamToken,
+        body: getValidFormPayload(),
+      });
+      formId = createRes.body.data.form_id;
+
+      await request(`/api/v1/forms/${formId}/responses`, {
+        method: 'POST',
+        body: { email: 'exists@example.com', answers: { '1': ['Team Exists'], '2': ['AI/ML'] } },
+      });
+    });
+
+    it('should return exists: true when response exists for email', async () => {
+      const res = await request(`/api/v1/forms/${formId}/responses/check?email=exists@example.com`);
+      assert.equal(res.status, 200);
+      assert.equal(res.body.success, true);
+      assert.equal(res.body.data.exists, true);
+      assert.equal(res.body.data.email, 'exists@example.com');
+    });
+
+    it('should return exists: false when response does not exist for email', async () => {
+      const res = await request(`/api/v1/forms/${formId}/responses/check?email=notexists@example.com`);
+      assert.equal(res.status, 200);
+      assert.equal(res.body.success, true);
+      assert.equal(res.body.data.exists, false);
+      assert.equal(res.body.data.email, 'notexists@example.com');
+    });
+
+    it('should return 400 Bad Request when email query parameter is missing', async () => {
+      const res = await request(`/api/v1/forms/${formId}/responses/check`);
+      assert.equal(res.status, 400);
+      assert.equal(res.body.error.code, 'INVALID_INPUT');
     });
   });
 
@@ -480,11 +579,11 @@ describe('Forms Module API Tests', () => {
       await request(`/api/v1/forms/${formId}/responses`, {
         method: 'POST',
         token: memberToken,
-        body: { answers: { '1': ['Team 1'], '2': ['AI/ML'] } },
+        body: { email: 'm1@example.com', answers: { '1': ['Team 1'], '2': ['AI/ML'] } },
       });
       await request(`/api/v1/forms/${formId}/responses`, {
         method: 'POST',
-        body: { answers: { '1': ['Team 2'], '2': ['Web Arch'] } },
+        body: { email: 'm2@example.com', answers: { '1': ['Team 2'], '2': ['Web Arch'] } },
       });
     });
 
@@ -538,7 +637,7 @@ describe('Forms Module API Tests', () => {
       const subRes = await request(`/api/v1/forms/${formId}/responses`, {
         method: 'POST',
         token: memberToken,
-        body: { answers: { '1': ['Solo Team'], '2': ['AI/ML'] } },
+        body: { email: 'solo@example.com', answers: { '1': ['Solo Team'], '2': ['AI/ML'] } },
       });
       responseId = subRes.body.data.response_id;
     });
@@ -560,6 +659,7 @@ describe('Forms Module API Tests', () => {
       assert.equal(res.body.data.response_id, responseId);
       assert.equal(res.body.data.form_id, formId);
       assert.equal(res.body.data.member_id, MEMBER_ID);
+      assert.equal(res.body.data.email, 'solo@example.com');
       assert.deepEqual(res.body.data.answers['1'], ['Solo Team']);
     });
   });
@@ -590,7 +690,7 @@ describe('Forms Module API Tests', () => {
 
       await request(`/api/v1/forms/${formId}/responses`, {
         method: 'POST',
-        body: { answers: { '1': ['Team Delta'], '2': ['AI/ML'] } },
+        body: { email: 'delta@example.com', answers: { '1': ['Team Delta'], '2': ['AI/ML'] } },
       });
 
       const deleteRes = await request(`/api/v1/forms/${formId}`, {

@@ -59,10 +59,20 @@ export const deleteForm = asyncHandler(async (req, res) => {
  */
 export const submitResponse = asyncHandler(async (req, res) => {
   const { form_id } = req.params;
-  const { answers } = req.body;
+  const { answers, email } = req.body;
   const member_id = req.user ? req.user.id : null;
-  const result = await FormsInternalService.submitResponse(form_id, member_id, answers);
+  const result = await FormsInternalService.submitResponse(form_id, member_id, answers, email);
   return sendSuccess(res, result, 201);
+});
+
+/**
+ * Controller to check whether a response exists for a specific email
+ */
+export const checkResponseExists = asyncHandler(async (req, res) => {
+  const { form_id } = req.params;
+  const { email } = req.query;
+  const result = await FormsInternalService.checkResponseExists(form_id, email);
+  return sendSuccess(res, result, 200);
 });
 
 /**

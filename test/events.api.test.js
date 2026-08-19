@@ -120,12 +120,32 @@ describe('Events Module API Tests', () => {
       assert.equal(res.body.error.code, 'INVALID_INPUT');
     });
 
-    it('should successfully create event for event_team role', async () => {
+    it('should reject reg_end_dt earlier than reg_st_dt with 400 Bad Request', async () => {
+      const res = await request('/api/v1/events', {
+        method: 'POST',
+        token: eventTeamToken,
+        body: {
+          overview: 'Test Event',
+          description: 'Description',
+          terms: 'Terms',
+          reg_st_dt: '2026-09-10T10:00:00.000Z',
+          reg_end_dt: '2026-09-01T10:00:00.000Z',
+        },
+      });
+      assert.equal(res.status, 400);
+      assert.equal(res.body.success, false);
+      assert.equal(res.body.error.code, 'INVALID_INPUT');
+      assert.ok(res.body.error.message.includes('earlier than start date'));
+    });
+
+    it('should successfully create event with reg_st_dt and reg_end_dt for event_team role', async () => {
       const payload = {
         overview: 'Web Dev Workshop',
         description: 'Learn modern web development',
         terms: 'Bring your laptop',
         reg_form_id: VALID_FORM_ID,
+        reg_st_dt: '2026-09-01T10:00:00.000Z',
+        reg_end_dt: '2026-09-10T10:00:00.000Z',
         banner_url: 'https://res.cloudinary.com/aces/image/upload/v1/banner.jpg',
       };
 
@@ -142,6 +162,8 @@ describe('Events Module API Tests', () => {
       assert.equal(res.body.data.description, payload.description);
       assert.equal(res.body.data.terms, payload.terms);
       assert.equal(res.body.data.reg_form_id, VALID_FORM_ID);
+      assert.equal(new Date(res.body.data.reg_st_dt).toISOString(), payload.reg_st_dt);
+      assert.equal(new Date(res.body.data.reg_end_dt).toISOString(), payload.reg_end_dt);
       assert.equal(res.body.data.auditing.created_by, EVENT_TEAM_ID);
     });
 

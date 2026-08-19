@@ -324,5 +324,113 @@ Eve Adams, eve.adams@aces.org, Marketing Team, Member`;
       assert.match(res.body.data.message, /Logged out successfully/i);
     });
   });
+
+  describe('Team Admin Role Authorization & Team Scoping', () => {
+    let webTeamAdminToken;
+    let webTeamMemberId;
+
+    beforeEach(async () => {
+      webTeamAdminToken = generateTestToken({
+        id: 'web-admin-id-123',
+        roles: ['team_admin', 'web_team'],
+        team: 'Web Team',
+      });
+
+      // Register a web team member
+      const regRes = await request('/api/v1/iam/register', {
+        method: 'POST',
+        token: adminToken,
+        body: {
+          name: 'Web Team Member',
+          email: 'web.member@aces.org',
+          team: 'Web Team',
+          position: 'Member',
+        },
+      });
+      webTeamMemberId = regRes.body.data.id;
+    });
+
+    it('should allow team_admin to register a member belonging to their own team', async () => {
+      const res = await request('/api/v1/iam/register', {
+        method: 'POST',
+        token: webTeamAdminToken,
+        body: {
+          name: 'New Web Recruit',
+          email: 'new.web@aces.org',
+          team: 'Web Team',
+          position: 'Member',
+        },
+      });
+
+      assert.equal(res.status, 201);
+      assert.equal(res.body.success, true);
+      assert.equal(res.body.data.team, 'Web Team');
+    });
+
+    it('should reject team_admin registering a member for a different team with 403 Forbidden', async () => {
+      const res = await request('/api/v1/iam/register', {
+        method: 'POST',
+        token: webTeamAdminToken,
+        body: {
+          name: 'Media Recruit',
+          email: 'media.recruit@aces.org',
+          team: 'Media Team',
+          position: 'Member',
+        },
+      });
+
+      assert.equal(res.status, 403);
+      assert.equal(res.body.success, false);
+      assert.match(res.body.error.message, /Team admins can only register members for their own team/i);
+    });
+
+    it('should allow team_admin to update a member of their own team', async () => {
+      const res = await request(`/api/v1/iam/members/${webTeamMemberId}`, {
+        method: 'PUT',
+        token: webTeamAdminToken,
+        body: {
+          name: 'Updated Web Member Name',
+          position: 'Head',
+        },
+      });
+
+      assert.equal(res.status, 200);
+      assert.equal(res.body.success, true);
+      assert.equal(res.body.data.name, 'Updated Web Member Name');
+    });
+
+    it('should strip roles and status updates when team_admin attempts to modify them', async () => {
+      const res = await request(`/api/v1/iam/members/${webTeamMemberId}`, {
+        method: 'PUT',
+        token: webTeamAdminToken,
+        body: {
+          roles: ['admin'],
+          status: 'ACTIVE',
+        },
+      });
+
+      assert.equal(res.status, 200);
+      assert.equal(res.body.success, true);
+      // Status should remain NOT_ACTIVE and admin role MUST NOT be assigned
+      assert.equal(res.body.data.status, 'NOT_ACTIVE');
+      assert.equal(res.body.data.roles.includes('admin'), false);
+    });
+
+    it('should allow true admin to update member roles and status', async () => {
+      const res = await request(`/api/v1/iam/members/${webTeamMemberId}`, {
+        method: 'PUT',
+        token: adminToken,
+        body: {
+          roles: ['team_admin', 'web_team'],
+          status: 'ACTIVE',
+        },
+      });
+
+      assert.equal(res.status, 200);
+      assert.equal(res.body.success, true);
+      assert.equal(res.body.data.status, 'ACTIVE');
+      assert.ok(res.body.data.roles.includes('team_admin'));
+    });
+  });
 });
 

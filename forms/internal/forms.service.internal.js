@@ -255,7 +255,7 @@ export class FormsInternalService {
   /**
    * Submit response to a form with strict question policy enforcement
    */
-  static async submitResponse(form_id, member_id, answersInput) {
+  static async submitResponse(form_id, member_id, answersInput, emailInput) {
     if (!mongoose.Types.ObjectId.isValid(form_id)) {
       throw new ValidationError('Invalid form ID format.');
     }
@@ -267,6 +267,22 @@ export class FormsInternalService {
 
     if (!form.is_active) {
       throw new ValidationError('Form is closed and no longer accepting responses.');
+    }
+
+    if (!emailInput || typeof emailInput !== 'string' || !emailInput.trim()) {
+      throw new ValidationError('Form filler email is required.');
+    }
+
+    const normalizedEmail = emailInput.trim().toLowerCase();
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(normalizedEmail)) {
+      throw new ValidationError('A valid email address is required.');
+    }
+
+    // Check if response already exists for this email and form
+    const existingResponse = await FormResponse.findOne({ form_id: form._id, email: normalizedEmail });
+    if (existingResponse) {
+      throw new ValidationError('A response has already been submitted with this email address.');
     }
 
     if (!answersInput || typeof answersInput !== 'object') {
@@ -347,17 +363,53 @@ export class FormsInternalService {
       }
     }
 
-    const formResponse = await FormResponse.create({
-      form_id: form._id,
-      member_id: member_id || null,
-      answers: normalizedAnswers,
-      submitted_at: new Date(),
-    });
+    try {
+      const formResponse = await FormResponse.create({
+        form_id: form._id,
+        member_id: member_id || null,
+        email: normalizedEmail,
+        answers: normalizedAnswers,
+        submitted_at: new Date(),
+      });
+
+      return {
+        response_id: formResponse._id,
+        form_id: form._id,
+        email: formResponse.email,
+        submitted_at: formResponse.submitted_at,
+      };
+    } catch (err) {
+      if (err.code === 11000) {
+        throw new ValidationError('A response has already been submitted with this email address.');
+      }
+      throw err;
+    }
+  }
+
+  /**
+   * Check whether a response exists for a specific email
+   */
+  static async checkResponseExists(form_id, emailInput) {
+    if (!mongoose.Types.ObjectId.isValid(form_id)) {
+      throw new ValidationError('Invalid form ID format.');
+    }
+
+    const form = await Form.findById(form_id).lean();
+    if (!form) {
+      throw new NotFoundError('Form not found.');
+    }
+
+    if (!emailInput || typeof emailInput !== 'string' || !emailInput.trim()) {
+      throw new ValidationError('Email query parameter is required.');
+    }
+
+    const normalizedEmail = emailInput.trim().toLowerCase();
+    const existing = await FormResponse.findOne({ form_id, email: normalizedEmail }).lean();
 
     return {
-      response_id: formResponse._id,
-      form_id: form._id,
-      submitted_at: formResponse.submitted_at,
+      form_id,
+      email: normalizedEmail,
+      exists: Boolean(existing),
     };
   }
 
@@ -401,6 +453,7 @@ export class FormsInternalService {
         response_id: r._id,
         form_id: r.form_id,
         member_id: r.member_id,
+        email: r.email,
         submitted_by: memberDoc ? {
           id: memberDoc._id,
           name: memberDoc.name,
@@ -462,6 +515,7 @@ export class FormsInternalService {
       response_id: response._id,
       form_id: response.form_id,
       member_id: response.member_id,
+      email: response.email,
       submitted_by,
       answers: ansObj,
       submitted_at: response.submitted_at,

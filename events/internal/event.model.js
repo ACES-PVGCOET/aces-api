@@ -61,6 +61,16 @@ const eventSchema = new mongoose.Schema(
       default: '',
     },
 
+    reg_st_dt: {
+      type: Date,
+      default: null,
+    },
+
+    reg_end_dt: {
+      type: Date,
+      default: null,
+    },
+
     isHighlight: {
       type: Boolean,
       default: false,

@@ -6,6 +6,7 @@ import {
   updateForm,
   deleteForm,
   submitResponse,
+  checkResponseExists,
   getFormResponses,
   getSingleResponse,
 } from './forms.controller.js';
@@ -49,6 +50,9 @@ router.delete(
 
 // Submit Response to Form
 router.post('/:form_id/responses', optionalAuthenticate, submitResponse);
+
+// Check if Response Exists for Email
+router.get('/:form_id/responses/check', optionalAuthenticate, checkResponseExists);
 
 // Get Responses for a Form
 router.get(

@@ -14,6 +14,12 @@ const responseSchema = new mongoose.Schema(
       default: null,
       index: true,
     },
+    email: {
+      type: String,
+      required: [true, 'Form filler email is required'],
+      trim: true,
+      lowercase: true,
+    },
     answers: {
       type: Map,
       of: [String],
@@ -41,5 +47,7 @@ const responseSchema = new mongoose.Schema(
     },
   }
 );
+
+responseSchema.index({ form_id: 1, email: 1 }, { unique: true });
 
 export const FormResponse = mongoose.model('FormResponse', responseSchema);

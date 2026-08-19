@@ -10,6 +10,7 @@ export const ROLES = {
   FACULTY: 'faculty',
   DESIGN_TEAM: 'design_team',
   PRODUCTION_TEAM: 'production_team',
+  TEAM_ADMIN: 'team_admin',
   ADMIN: 'admin',
 };
 

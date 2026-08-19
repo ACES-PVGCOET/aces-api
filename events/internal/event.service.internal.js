@@ -28,6 +28,20 @@ export class EventInternalService {
       }
     }
 
+    const reg_st_dt = data.reg_st_dt ? new Date(data.reg_st_dt) : null;
+    if (reg_st_dt && isNaN(reg_st_dt.getTime())) {
+      throw new ValidationError('Invalid registration start date.');
+    }
+
+    const reg_end_dt = data.reg_end_dt ? new Date(data.reg_end_dt) : null;
+    if (reg_end_dt && isNaN(reg_end_dt.getTime())) {
+      throw new ValidationError('Invalid registration end date.');
+    }
+
+    if (reg_st_dt && reg_end_dt && reg_end_dt < reg_st_dt) {
+      throw new ValidationError('Registration end date cannot be earlier than start date.');
+    }
+
     const now = new Date();
 
     const event = await EventModel.create({
@@ -36,6 +50,8 @@ export class EventInternalService {
       terms: data.terms,
       reg_form_id: data.reg_form_id || null,
       banner_url: data.banner_url || '',
+      reg_st_dt,
+      reg_end_dt,
       isHighlight,
 
       auditing: {
@@ -108,6 +124,30 @@ export class EventInternalService {
         throw new ValidationError('Invalid registration form ID.');
       }
       event.reg_form_id = data.reg_form_id;
+    }
+
+    if (data.reg_st_dt === '' || data.reg_st_dt === null) {
+      event.reg_st_dt = null;
+    } else if (data.reg_st_dt !== undefined) {
+      const d = new Date(data.reg_st_dt);
+      if (isNaN(d.getTime())) {
+        throw new ValidationError('Invalid registration start date.');
+      }
+      event.reg_st_dt = d;
+    }
+
+    if (data.reg_end_dt === '' || data.reg_end_dt === null) {
+      event.reg_end_dt = null;
+    } else if (data.reg_end_dt !== undefined) {
+      const d = new Date(data.reg_end_dt);
+      if (isNaN(d.getTime())) {
+        throw new ValidationError('Invalid registration end date.');
+      }
+      event.reg_end_dt = d;
+    }
+
+    if (event.reg_st_dt && event.reg_end_dt && event.reg_end_dt < event.reg_st_dt) {
+      throw new ValidationError('Registration end date cannot be earlier than start date.');
     }
 
     if (data.overview !== undefined) {

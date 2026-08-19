@@ -9,6 +9,8 @@ export const createEvent = asyncHandler(async (req, res) => {
     description,
     terms,
     reg_form_id,
+    reg_st_dt,
+    reg_end_dt,
     banner_url,
     isHighlight,
   } = req.body;
@@ -25,6 +27,8 @@ export const createEvent = asyncHandler(async (req, res) => {
       description,
       terms,
       reg_form_id,
+      reg_st_dt,
+      reg_end_dt,
       banner_url,
       isHighlight,
     },

@@ -6,7 +6,7 @@ import { config } from '../../shared/config/index.js';
 import { MEMBER_STATUS, ROLES } from '../../shared/constants/index.js';
 import { sendOnboardingEmail } from '../../shared/utils/mailer.js';
 import { uploadProfilePhoto, replaceUploadedFile } from '../../shared/utils/fileUpload.js';
-import { NotFoundError, UnauthorizedError, ConflictError, ValidationError } from '../../shared/errors/index.js';
+import { NotFoundError, UnauthorizedError, ConflictError, ValidationError, ForbiddenError } from '../../shared/errors/index.js';
 import {
   validateTeamAndPosition,
   getRolesByTeamAndPosition,
@@ -14,13 +14,25 @@ import {
 } from './teamHierarchy.service.js';
 
 export class IAMInternalService {
-  static async registerMember(data, file = null) {
+  static async registerMember(data, file = null, currentUser = null) {
     const existing = await MemberModel.findOne({ email: data.email });
     if (existing) {
       throw new ConflictError('A member with this email already exists.');
     }
 
     const { canonicalTeam, canonicalPosition } = validateTeamAndPosition(data.team, data.position);
+
+    if (currentUser) {
+      const isAdmin = currentUser.roles?.includes(ROLES.ADMIN) || currentUser.roles?.includes('admin');
+      const isTeamAdmin = currentUser.roles?.includes(ROLES.TEAM_ADMIN) || currentUser.roles?.includes('team_admin');
+
+      if (isTeamAdmin && !isAdmin) {
+        if (!currentUser.team || canonicalTeam.toLowerCase() !== currentUser.team.toLowerCase()) {
+          throw new ForbiddenError(`Team admins can only register members for their own team ('${currentUser.team}').`);
+        }
+      }
+    }
+
     const dynamicRoles = getRolesByTeamAndPosition(canonicalTeam, canonicalPosition);
 
     const memberData = {
@@ -34,6 +46,14 @@ export class IAMInternalService {
       memberData.roles = Array.from(mergedRoles);
     } else {
       memberData.roles = dynamicRoles;
+    }
+
+    // Strip administrative roles if created by a non-admin team_admin
+    if (currentUser) {
+      const isAdmin = currentUser.roles?.includes(ROLES.ADMIN) || currentUser.roles?.includes('admin');
+      if (!isAdmin) {
+        memberData.roles = memberData.roles.filter((r) => r !== ROLES.ADMIN && r !== 'admin' && r !== ROLES.TEAM_ADMIN && r !== 'team_admin');
+      }
     }
 
     if (typeof memberData.social_links === 'string') {
@@ -169,14 +189,31 @@ export class IAMInternalService {
       throw new NotFoundError(`Member with ID '${id}' not found.`);
     }
 
+    const isAdmin = currentUser?.roles?.includes(ROLES.ADMIN) || currentUser?.roles?.includes('admin');
+    const isTeamAdmin = currentUser?.roles?.includes(ROLES.TEAM_ADMIN) || currentUser?.roles?.includes('team_admin');
+    const isSelf = currentUser && currentUser.id === id;
+    const isSameTeam = currentUser?.team && member.team && currentUser.team.trim().toLowerCase() === member.team.trim().toLowerCase();
+
+    if (currentUser && !isAdmin && !isSelf && !(isTeamAdmin && isSameTeam)) {
+      throw new ForbiddenError('You do not have permission to update this member.');
+    }
+
     const updateFields = { ...updates };
 
-    if (currentUser && !currentUser.roles.includes('admin')) {
-      // Non-admin members cannot update restricted admin fields
+    if (currentUser && !isAdmin) {
+      // Non-admin members (including team_admin) cannot update roles, status, or email
       delete updateFields.status;
       delete updateFields.roles;
       delete updateFields.email;
-      delete updateFields.team;
+
+      if (isTeamAdmin && updateFields.team) {
+        const { canonicalTeam } = validateTeamAndPosition(updateFields.team, updateFields.position || member.position);
+        if (canonicalTeam.toLowerCase() !== currentUser.team.toLowerCase()) {
+          throw new ForbiddenError(`Team admins can only assign members to their own team ('${currentUser.team}').`);
+        }
+      } else if (!isAdmin) {
+        delete updateFields.team;
+      }
     }
 
     if (updateFields.team || updateFields.position) {
@@ -228,7 +265,7 @@ export class IAMInternalService {
     return { message: 'Member successfully removed.' };
   }
 
-  static async bulkRegisterMembers(sheetUrl) {
+  static async bulkRegisterMembers(sheetUrl, currentUser = null) {
     if (!sheetUrl || typeof sheetUrl !== 'string' || !sheetUrl.trim()) {
       throw new ValidationError('Google Sheet URL is required.');
     }
@@ -291,12 +328,16 @@ export class IAMInternalService {
       }
 
       try {
-        const registered = await this.registerMember({
-          name: name.trim(),
-          email: email.trim(),
-          team: team.trim(),
-          position: position.trim(),
-        });
+        const registered = await this.registerMember(
+          {
+            name: name.trim(),
+            email: email.trim(),
+            team: team.trim(),
+            position: position.trim(),
+          },
+          null,
+          currentUser
+        );
         successful.push(registered);
       } catch (err) {
         failed.push({

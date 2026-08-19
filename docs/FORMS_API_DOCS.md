@@ -149,6 +149,7 @@ The **Forms Module** (`forms/`) provides dynamic form management, schema validat
   "response_id": "66b64f9e1234567890resp01",
   "form_id": "66b64f9e1234567890abcdef",
   "member_id": "66b64f9e1234567890user01",
+  "email": "filler@example.com",
   "answers": {
     "1": ["Artificial Intelligence"],
     "2": ["https://res.cloudinary.com/aces/raw/upload/v123/proposal.pdf"]
@@ -339,6 +340,7 @@ The **Forms Module** (`forms/`) provides dynamic form management, schema validat
 * **Request Body:**
   ```json
   {
+    "email": "filler@example.com",
     "answers": {
       "1": ["Binary Beasts"],
       "2": ["AI/ML"],
@@ -353,6 +355,7 @@ The **Forms Module** (`forms/`) provides dynamic form management, schema validat
     "data": {
       "response_id": "66b64f9e1234567890resp01",
       "form_id": "66b64f9e1234567890abcdef",
+      "email": "filler@example.com",
       "submitted_at": "2026-08-10T12:30:00.000Z"
     },
     "error": null
@@ -360,11 +363,40 @@ The **Forms Module** (`forms/`) provides dynamic form management, schema validat
   ```
 * **Error Scenarios:**
   - `400 Bad Request` (`INVALID_INPUT`):
+    - Form filler `email` is missing or invalid.
+    - Response already submitted for this email address on this form.
     - Form is inactive (`is_active = false`).
     - Missing answer for a required question.
     - Textual answer exceeds `max_len`.
     - Multiple choice selection invalid or selecting multiple options when `Single` is required.
     - File extension not supported in `supported_types`.
+
+---
+
+### 4.7 Check Response Existence by Email
+* **Method:** `GET`
+* **Endpoint:** `/api/v1/forms/:form_id/responses/check`
+* **Auth Required:** Optional (`optionalAuthenticate`)
+* **Query Parameters:**
+  | Parameter | Type | Required | Description |
+  | :--- | :--- | :--- | :--- |
+  | `email` | String | Yes | Email address of the form filler to query. |
+
+* **Success Response (`200 OK`):**
+  ```json
+  {
+    "success": true,
+    "data": {
+      "form_id": "66b64f9e1234567890abcdef",
+      "email": "filler@example.com",
+      "exists": true
+    },
+    "error": null
+  }
+  ```
+* **Error Scenarios:**
+  - `400 Bad Request` (`INVALID_INPUT`): Missing `email` query parameter or invalid `form_id`.
+  - `404 Not Found` (`NOT_FOUND`): Form not found.
 
 ---
 

@@ -9,7 +9,7 @@ export const registerMember = asyncHandler(async (req, res) => {
     throw new ValidationError('Email, team, and position are required fields.');
   }
 
-  const result = await IAMInternalService.registerMember(req.body, req.file);
+  const result = await IAMInternalService.registerMember(req.body, req.file, req.user);
   return sendSuccess(res, result, 201);
 });
 
@@ -19,7 +19,7 @@ export const bulkRegisterMembers = asyncHandler(async (req, res) => {
     throw new ValidationError('Google Sheet URL is required.');
   }
 
-  const result = await IAMInternalService.bulkRegisterMembers(sheetUrl);
+  const result = await IAMInternalService.bulkRegisterMembers(sheetUrl, req.user);
   return sendSuccess(res, result, 201);
 });
 
@@ -92,13 +92,6 @@ export const listMembers = asyncHandler(async (req, res) => {
 
 export const updateMember = asyncHandler(async (req, res) => {
   const targetId = req.params.id;
-  const isSelf = req.user && req.user.id === targetId;
-  const isAdmin = req.user && req.user.roles && req.user.roles.includes('admin');
-
-  if (!isSelf && !isAdmin) {
-    throw new ForbiddenError('You can only update your own profile.');
-  }
-
   const updatedMember = await IAMInternalService.updateMember(targetId, req.body, req.user, req.file);
   return sendSuccess(res, updatedMember);
 });

@@ -1,6 +1,7 @@
 {
   "authorities": {
     "*.*": ["admin"],
+    "members.register": ["admin", "team_admin"],
     "members.*": ["admin"],
     "events.*": ["event_team"],
     "announcements.*": ["marketing_team"],
