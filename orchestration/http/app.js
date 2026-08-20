@@ -20,8 +20,17 @@ app.use(helmet());
 app.use(
   cors({
     origin: (origin, callback) => {
-      // Allow requests with no origin (curl/mobile) or any localhost port (5173, 3000, etc.)
-      if (!origin || origin.includes('localhost') || origin.includes('127.0.0.1') || origin === config.clientOrigin) {
+      // Allow requests with no origin (curl/mobile) or matching client origins / localhost
+      if (!origin) return callback(null, true);
+
+      const allowedOrigins = config.clientOrigins || [];
+      const isAllowed =
+        allowedOrigins.includes(origin) ||
+        origin === config.clientOrigin ||
+        origin.includes('localhost') ||
+        origin.includes('127.0.0.1');
+
+      if (isAllowed) {
         return callback(null, true);
       }
       return callback(null, true);

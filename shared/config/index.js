@@ -10,10 +10,17 @@ dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
 const trimQuotes = (str) => (typeof str === 'string' ? str.trim().replace(/^["']|["']$/g, '') : str);
 
+const rawClientOrigin = trimQuotes(process.env.CLIENT_ORIGIN) || 'http://localhost:3000';
+const clientOrigins = rawClientOrigin
+  .split(',')
+  .map((origin) => trimQuotes(origin.trim()))
+  .filter(Boolean);
+
 export const config = {
   env: trimQuotes(process.env.NODE_ENV) || 'development',
   port: parseInt(process.env.PORT || '5000', 10),
-  clientOrigin: trimQuotes(process.env.CLIENT_ORIGIN) || 'http://localhost:3000',
+  clientOrigin: clientOrigins[0] || 'http://localhost:3000',
+  clientOrigins: clientOrigins.length > 0 ? clientOrigins : ['http://localhost:3000'],
   mongo: {
     uri: trimQuotes(process.env.MONGO_URI) || 'mongodb://localhost:27017/aces_db',
   },
