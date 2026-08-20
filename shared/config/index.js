@@ -30,14 +30,6 @@ export const config = {
     email: trimQuotes(process.env.INIT_ADMIN_EMAIL || process.env.ADMIN_EMAIL) || '',
     password: trimQuotes(process.env.INIT_ADMIN_PASSWORD || process.env.ADMIN_PASSWORD) || 'Admin@123456',
   },
-  smtp: {
-    host: trimQuotes(process.env.SMTP_HOST) || '',
-    port: parseInt(process.env.SMTP_PORT || '587', 10),
-    secure: process.env.SMTP_SECURE === 'true',
-    user: trimQuotes(process.env.SMTP_USER) || '',
-    pass: trimQuotes(process.env.SMTP_PASS) || '',
-    from: trimQuotes(process.env.SMTP_FROM) || 'ACES Association <noreply@aces.org>',
-  },
   resend: {
     apiKey: trimQuotes(process.env.RESEND_API_KEY) || '',
     from: trimQuotes(process.env.RESEND_FROM) || 'ACES Association <onboarding@resend.dev>',

@@ -59,7 +59,7 @@ The application is structured as a **Modular Monolith**:
 ###  1. Identity & Access Management (IAM)
 - User authentication via JWT tokens and bcrypt password hashing.
 - Role-based Access Control (RBAC) supporting custom administrative authorities.
-- Password reset workflow with email verification tokens via Nodemailer.
+- Password reset workflow with email verification tokens via Resend.
 - **Google Sheet CSV Bulk Member Registration**: Admins can import members directly from published Google Sheet URLs.
 
 ###  2. Events Management
@@ -90,7 +90,7 @@ The application is structured as a **Modular Monolith**:
 | **Runtime & Core** | Node.js (v20+ ES Modules), Express.js (v4.19) |
 | **Database** | MongoDB, Mongoose ODM (v8.3) |
 | **Authentication & Security** | JSON Web Tokens (`jsonwebtoken`), `bcryptjs`, `helmet`, `cors` |
-| **File Storage & Mail** | Cloudinary (v2.0), Multer (v2.2), Nodemailer (v9.0) |
+| **File Storage & Mail** | Cloudinary (v2.0), Multer (v2.2), Resend (v6.20) |
 | **Logging & Utilities** | Morgan, Dotenv |
 | **Testing & Quality** | Node.js Native Test Runner (`node --test`), `mongodb-memory-server`, ESLint (v9) |
 | **Containerization** | Docker (Alpine Multi-Stage Build) |
@@ -158,11 +158,8 @@ cp .env.example .env
 | `CLOUDINARY_API_SECRET` | Cloudinary API secret | `your_api_secret` |
 | `INIT_ADMIN_EMAIL` | Initial root admin email address for auto-seeding | `admin@aces.org` |
 | `INIT_ADMIN_PASSWORD` | Initial root admin password for auto-seeding | `Admin@123456` |
-| `SMTP_HOST` | SMTP server host address | `smtp.gmail.com` |
-| `SMTP_PORT` | SMTP port number | `587` |
-| `SMTP_USER` | SMTP authentication user | `your_email@gmail.com` |
-| `SMTP_PASS` | SMTP authentication app password | `your_app_password` |
-| `SMTP_FROM` | Sender display string for emails | `"ACES Association"` |
+| `RESEND_API_KEY` | Resend API Key for sending transactional emails | `re_your_api_key` |
+| `RESEND_FROM` | Sender display string and address for emails | `ACES Association <onboarding@resend.dev>` |
 
 ---
 

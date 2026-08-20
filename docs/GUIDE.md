@@ -93,13 +93,9 @@ mongod --version
    INIT_ADMIN_EMAIL=admin@aces.org
    INIT_ADMIN_PASSWORD=Admin@123456
 
-   # SMTP Mail Server Configuration
-   SMTP_HOST=smtp.gmail.com
-   SMTP_PORT=587
-   SMTP_SECURE=false
-   SMTP_USER=your_email@gmail.com
-   SMTP_PASS=your_email_app_password
-   SMTP_FROM="ACES Association"
+   # Resend Email Configuration
+   RESEND_API_KEY=re_your_resend_api_key
+   RESEND_FROM=ACES Association <onboarding@resend.dev>
    ```
 
 > [!CAUTION]

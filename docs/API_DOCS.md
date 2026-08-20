@@ -129,7 +129,7 @@ sequenceDiagram
     autonumber
     actor Admin
     participant API as ACES API
-    participant Mail as SMTP Mailer
+    participant Mail as Resend Mailer
     actor User as New Member
 
     Admin->>API: POST /api/v1/iam/register (email, team, position)
