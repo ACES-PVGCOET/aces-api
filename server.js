@@ -17,7 +17,7 @@ const startServer = async () => {
     await IAMService.seedInitialAdmin();
 
     // Start Express Server
-    server = app.listen(config.port, () => {
+    server = app.listen(config.port, "0.0.0.0", () => {
       console.info(`[Server] ACES API running in '${config.env}' mode on port ${config.port}`);
       console.info(`[Server] Health Check available at http://localhost:${config.port}/health`);
     });
