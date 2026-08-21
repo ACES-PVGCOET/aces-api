@@ -213,6 +213,43 @@ Carol Danvers, carol.danvers@aces.org, Media Team, Joint Head`;
       assert.equal(res.body.data.successful[2].position, 'Joint Head');
     });
 
+    it('should successfully register members under Event Team, Events Team, Design Team, and DnP Team aliases', async () => {
+      const mockCsvContent = `Name, Email, Team, Position
+Eve Event, eve.event@aces.org, Event Team, Member
+Evan Events, evan.events@aces.org, Events Team, Head
+Desi Design, desi.design@aces.org, Design Team, Member
+Don DnP, don.dnp@aces.org, DnP Team, Joint Head`;
+
+      mockExternalFetch(async () => ({
+        ok: true,
+        text: async () => mockCsvContent,
+      }));
+
+      const res = await request('/api/v1/iam/bulk-register', {
+        method: 'POST',
+        token: adminToken,
+        body: { sheet_url: 'https://docs.google.com/spreadsheets/d/e/2PACX-teams/pub?output=csv' },
+      });
+
+      assert.equal(res.status, 201);
+      assert.equal(res.body.success, true);
+      assert.equal(res.body.data.total, 4);
+      assert.equal(res.body.data.successfulCount, 4);
+      assert.equal(res.body.data.failedCount, 0);
+
+      assert.equal(res.body.data.successful[0].team, 'Event Team');
+      assert.ok(res.body.data.successful[0].roles.includes('event_team'));
+
+      assert.equal(res.body.data.successful[1].team, 'Event Team');
+      assert.ok(res.body.data.successful[1].roles.includes('event_team'));
+
+      assert.equal(res.body.data.successful[2].team, 'Design Team');
+      assert.ok(res.body.data.successful[2].roles.includes('design_team'));
+
+      assert.equal(res.body.data.successful[3].team, 'DnP Team');
+      assert.ok(res.body.data.successful[3].roles.includes('design_team'));
+    });
+
     it('should handle partial failure reporting duplicate emails or invalid team/position', async () => {
       // Pre-register one member first
       await request('/api/v1/iam/register', {

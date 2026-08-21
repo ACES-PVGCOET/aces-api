@@ -13,6 +13,7 @@ const DEFAULT_HIERARCHY = {
   'Marketing Team': ['Head', 'Joint Head', 'Member'],
   'Treasury Team': ['Head', 'Joint Head', 'Member'],
   'Event Team': ['Head', 'Joint Head', 'Member'],
+  'Design Team': ['Head', 'Joint Head', 'Member'],
   'DnP Team': ['Head', 'Joint Head', 'Member'],
   'Editorial Team': ['Head', 'Joint Head', 'Member'],
   'Production Team': ['Head', 'Joint Head', 'Member'],
@@ -30,7 +31,9 @@ const TEAM_ROLE_MAP = {
   'marketing team': ROLES.MARKETING_TEAM,
   'treasury team': ROLES.TREASURY_TEAM,
   'event team': ROLES.EVENT_TEAM,
-  'dnp team': ROLES.DNP_TEAM,
+  'events team': ROLES.EVENT_TEAM,
+  'dnp team': ROLES.DESIGN_TEAM,
+  'design team': ROLES.DESIGN_TEAM,
   'editorial team': ROLES.EDITORIAL_TEAM,
   'production team': ROLES.PRODUCTION_TEAM,
   'executive': ROLES.ADMIN,
@@ -45,7 +48,10 @@ const INTERNAL_TEAMS = ['executive', 'executive team'];
  */
 export function getTeamHierarchy() {
   try {
-    const filePath = path.resolve(process.cwd(), 'teams.txt');
+    let filePath = path.resolve(process.cwd(), 'teams.txt');
+    if (!fs.existsSync(filePath)) {
+      filePath = path.resolve(process.cwd(), 'docs', 'teams.txt');
+    }
     if (!fs.existsSync(filePath)) {
       return DEFAULT_HIERARCHY;
     }
@@ -103,9 +109,15 @@ export function validateTeamAndPosition(team, position) {
     (key) => key.toLowerCase() === normalizedInputTeam
   );
 
-  // Alias support (e.g. "Tech Team" -> "Technical Team")
-  if (!canonicalTeam && normalizedInputTeam === 'tech team') {
+  // Alias support (e.g. "Tech Team" -> "Technical Team", "Events Team" -> "Event Team", "Design Team" -> "DnP Team" / "Design Team")
+  if (!canonicalTeam && (normalizedInputTeam === 'tech team' || normalizedInputTeam === 'technical')) {
     canonicalTeam = teamKeys.find((key) => key.toLowerCase() === 'technical team') || 'Technical Team';
+  }
+  if (!canonicalTeam && (normalizedInputTeam === 'events team' || normalizedInputTeam === 'event')) {
+    canonicalTeam = teamKeys.find((key) => key.toLowerCase() === 'event team' || key.toLowerCase() === 'events team') || 'Event Team';
+  }
+  if (!canonicalTeam && (normalizedInputTeam === 'design team' || normalizedInputTeam === 'dnp team' || normalizedInputTeam === 'dnp' || normalizedInputTeam === 'design')) {
+    canonicalTeam = teamKeys.find((key) => key.toLowerCase() === 'design team' || key.toLowerCase() === 'dnp team') || 'Design Team';
   }
   if (!canonicalTeam && normalizedInputTeam === 'executive team') {
     canonicalTeam = teamKeys.find((key) => key.toLowerCase() === 'executive') || 'Executive';

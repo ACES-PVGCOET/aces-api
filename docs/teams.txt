@@ -18,6 +18,8 @@ Treasury Team:
     (Head, Joint Head, Member)
 Event Team:
     (Head, Joint Head, Member)
+Design Team:
+    (Head, Joint Head, Member)
 DnP Team:
     (Head, Joint Head, Member)
 Editorial Team:
