@@ -1,6 +1,7 @@
 import { FormsInternalService } from '../internal/forms.service.internal.js';
 import { sendSuccess } from '../../shared/utils/responseFormatter.js';
 import { asyncHandler } from '../../shared/utils/asyncHandler.js';
+import { ValidationError } from '../../shared/errors/index.js';
 
 /**
  * Controller to create a new form with structured questions
@@ -91,4 +92,30 @@ export const getSingleResponse = asyncHandler(async (req, res) => {
   const { form_id, response_id } = req.params;
   const result = await FormsInternalService.getSingleResponse(form_id, response_id);
   return sendSuccess(res, result, 200);
+});
+
+/**
+ * Controller to process single file upload for form responses and return Cloudinary URL
+ */
+export const uploadFormFile = asyncHandler(async (req, res) => {
+  if (!req.file) {
+    throw new ValidationError('No file provided for upload.');
+  }
+
+  const { processUploadedFile } = await import('../../shared/utils/fileUpload.js');
+  const uploadResult = await processUploadedFile(req.file, {
+    folder: 'aces/form_responses',
+    resource_type: 'auto',
+  });
+
+  return sendSuccess(
+    res,
+    {
+      url: uploadResult.secureUrl,
+      public_id: uploadResult.publicId,
+      format: uploadResult.format,
+      bytes: uploadResult.bytes,
+    },
+    201
+  );
 });

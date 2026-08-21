@@ -39,6 +39,7 @@ export class FormsInternalService {
         question_statement: q.question_statement.trim(),
         question_type: q.question_type,
         is_required: q.is_required !== undefined ? Boolean(q.is_required) : true,
+        image_url: q.image_url ? String(q.image_url).trim() : '',
         textual_policy: {
           max_len: (q.textual_policy && q.textual_policy.max_len) || 500,
         },
@@ -122,6 +123,7 @@ export class FormsInternalService {
       question_statement: q.question_statement,
       question_type: q.question_type,
       is_required: q.is_required,
+      image_url: q.image_url || '',
       textual_policy: q.textual_policy,
       multiple_choice_policy: q.multiple_choice_policy,
       file_policy: q.file_policy,

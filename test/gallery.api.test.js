@@ -33,20 +33,12 @@ describe('Gallery Module API Tests', () => {
   });
 
   describe('GET /api/v1/gallery/upload-signature (Get Presigned Upload Signature)', () => {
-    it('should reject unauthenticated request with 401 Unauthorized', async () => {
+    it('should allow unauthenticated request to get presigned upload signature', async () => {
       const res = await request('/api/v1/gallery/upload-signature?folder=events&resource_type=image');
-      assert.equal(res.status, 401);
-      assert.equal(res.body.success, false);
-      assert.equal(res.body.error.code, 'UNAUTHORIZED');
-    });
-
-    it('should reject request from non-authorized role with 403 Forbidden', async () => {
-      const res = await request('/api/v1/gallery/upload-signature?folder=events&resource_type=image', {
-        token: forbiddenToken,
-      });
-      assert.equal(res.status, 403);
-      assert.equal(res.body.success, false);
-      assert.equal(res.body.error.code, 'FORBIDDEN');
+      assert.equal(res.status, 200);
+      assert.equal(res.body.success, true);
+      assert.ok(res.body.data.upload_url);
+      assert.ok(res.body.data.signature);
     });
 
     it('should reject request missing folder parameter with 400 Bad Request', async () => {

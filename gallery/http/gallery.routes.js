@@ -8,11 +8,10 @@ import {
 
 const router = Router();
 
-// Presigned signature generation (Media & Editorial team)
+// Presigned signature generation (Public / unauthenticated)
 router.get(
   '/upload-signature',
-  authenticate,
-  authorize('gallery.upload'),
+  optionalAuthenticate,
   galleryController.getUploadSignature
 );
 

@@ -1058,7 +1058,7 @@ Generates a presigned Cloudinary upload signature enabling direct browser-to-CDN
 
 - **Method**: `GET`
 - **Endpoint**: `/api/v1/gallery/upload-signature`
-- **Auth**: Required (`media_team`, `editorial_team`, or `admin` role / `gallery.upload` authority)
+- **Auth**: Public / Optional Authentication
 - **Query Parameters**:
   | Parameter | Type | Required | Description |
   | :--- | :--- | :---: | :--- |
@@ -1082,13 +1082,10 @@ Generates a presigned Cloudinary upload signature enabling direct browser-to-CDN
 
 - **Error Responses**:
   - `400 INVALID_INPUT`: Missing `folder` or `resource_type` query parameters, or invalid `resource_type`.
-  - `401 UNAUTHORIZED`: Authentication token missing.
-  - `403 FORBIDDEN`: User role does not possess `gallery.upload` authority.
 
 - **cURL Example**:
   ```bash
-  curl -X GET "http://localhost:5000/api/v1/gallery/upload-signature?folder=events&resource_type=image" \
-    -H "Authorization: Bearer <USER_JWT_TOKEN>"
+  curl -X GET "http://localhost:5000/api/v1/gallery/upload-signature?folder=events&resource_type=image"
   ```
 
 ---

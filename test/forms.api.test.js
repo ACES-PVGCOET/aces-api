@@ -172,6 +172,37 @@ describe('Forms Module API Tests', () => {
       assert.equal(res.status, 201);
       assert.equal(res.body.success, true);
     });
+
+    it('should successfully store and return image_url for question body', async () => {
+      const payload = {
+        title: 'Form With Diagram Question',
+        questions: [
+          {
+            question_serial: 1,
+            question_statement: 'Identify the component shown in the image:',
+            question_type: 'multiple_choice',
+            image_url: 'https://example.com/diagram.png',
+            multiple_choice_policy: {
+              type: 'Single',
+              options: ['Option A', 'Option B', 'Option C'],
+            },
+          },
+        ],
+      };
+
+      const createRes = await request('/api/v1/forms', {
+        method: 'POST',
+        token: eventTeamToken,
+        body: payload,
+      });
+
+      assert.equal(createRes.status, 201);
+      const formId = createRes.body.data.form_id;
+
+      const getRes = await request(`/api/v1/forms/${formId}`);
+      assert.equal(getRes.status, 200);
+      assert.equal(getRes.body.data.questions[0].image_url, 'https://example.com/diagram.png');
+    });
   });
 
   describe('GET /api/v1/forms (List Forms)', () => {
@@ -708,6 +739,16 @@ describe('Forms Module API Tests', () => {
         token: eventTeamToken,
       });
       assert.equal(getRespRes.status, 404);
+    });
+  });
+
+  describe('POST /api/v1/forms/upload (Upload Form File)', () => {
+    it('should reject file upload request when no file is provided with 400 Bad Request', async () => {
+      const res = await request('/api/v1/forms/upload', {
+        method: 'POST',
+      });
+      assert.equal(res.status, 400);
+      assert.equal(res.body.error.code, 'INVALID_INPUT');
     });
   });
 });

@@ -16,7 +16,7 @@ const DEFAULT_ALLOWED_MIME_TYPES = [
  */
 const createFileFilter = (allowedMimeTypes = DEFAULT_ALLOWED_MIME_TYPES) => {
   return (_req, file, cb) => {
-    if (allowedMimeTypes.includes(file.mimetype)) {
+    if (!allowedMimeTypes || allowedMimeTypes.includes('*') || allowedMimeTypes.includes(file.mimetype)) {
       cb(null, true);
     } else {
       cb(

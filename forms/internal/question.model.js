@@ -26,6 +26,11 @@ const questionSchema = new mongoose.Schema(
       type: Boolean,
       default: true,
     },
+    image_url: {
+      type: String,
+      trim: true,
+      default: '',
+    },
     textual_policy: {
       max_len: {
         type: Number,
