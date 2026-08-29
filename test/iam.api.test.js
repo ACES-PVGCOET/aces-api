@@ -469,5 +469,180 @@ Eve Adams, eve.adams@aces.org, Marketing Team, Member`;
       assert.ok(res.body.data.roles.includes('team_admin'));
     });
   });
+
+  describe('Faculty Roles, Team Request Aliases & Role Sorting Tests', () => {
+    it('should validate and register Faculty members with Head of Department and Faculty Coordinator positions', async () => {
+      const hodRes = await request('/api/v1/iam/register', {
+        method: 'POST',
+        token: adminToken,
+        body: {
+          name: 'Dr. HOD User',
+          email: 'hod@aces.org',
+          team: 'Faculty',
+          position: 'Head of Department',
+        },
+      });
+      assert.equal(hodRes.status, 201);
+      assert.equal(hodRes.body.data.position, 'Head Of Department');
+
+      const coordRes = await request('/api/v1/iam/register', {
+        method: 'POST',
+        token: adminToken,
+        body: {
+          name: 'Prof. Coordinator',
+          email: 'coord@aces.org',
+          team: 'Faculty',
+          position: 'Faculty Coordinator',
+        },
+      });
+      assert.equal(coordRes.status, 201);
+      assert.equal(coordRes.body.data.position, 'Faculty Coordinator');
+    });
+
+    it('should resolve team requests for treasury & sponsorship team -> treasury team and media & marketing team -> media team', async () => {
+      await request('/api/v1/iam/register', {
+        method: 'POST',
+        token: adminToken,
+        body: {
+          name: 'Treasury Lead',
+          email: 'treasury.lead@aces.org',
+          team: 'Treasury Team',
+          position: 'Head',
+        },
+      });
+
+      await request('/api/v1/iam/register', {
+        method: 'POST',
+        token: adminToken,
+        body: {
+          name: 'Media Lead',
+          email: 'media.lead@aces.org',
+          team: 'Media Team',
+          position: 'Head',
+        },
+      });
+
+      const treasuryRes = await request('/api/v1/iam/members?team=treasury and sponsorship team', {
+        method: 'GET',
+      });
+      assert.equal(treasuryRes.status, 200);
+      assert.ok(treasuryRes.body.data.members.length >= 1);
+      assert.equal(treasuryRes.body.data.members[0].email, 'treasury.lead@aces.org');
+
+      const mediaRes = await request('/api/v1/iam/members?team=media and marketing team', {
+        method: 'GET',
+      });
+      assert.equal(mediaRes.status, 200);
+      assert.ok(mediaRes.body.data.members.length >= 1);
+      assert.equal(mediaRes.body.data.members[0].email, 'media.lead@aces.org');
+    });
+
+    it('should return team members in sorted order according to role ranks', async () => {
+      // Register Web Team members out of order
+      await request('/api/v1/iam/register', {
+        method: 'POST',
+        token: adminToken,
+        body: {
+          name: 'Web Member',
+          email: 'web.member.sort@aces.org',
+          team: 'Web Team',
+          position: 'Member',
+        },
+      });
+      await request('/api/v1/iam/register', {
+        method: 'POST',
+        token: adminToken,
+        body: {
+          name: 'Web Head',
+          email: 'web.head.sort@aces.org',
+          team: 'Web Team',
+          position: 'Head',
+        },
+      });
+      await request('/api/v1/iam/register', {
+        method: 'POST',
+        token: adminToken,
+        body: {
+          name: 'Web Joint Head',
+          email: 'web.jointhead.sort@aces.org',
+          team: 'Web Team',
+          position: 'Joint Head',
+        },
+      });
+
+      const webRes = await request('/api/v1/iam/members?team=Web Team', {
+        method: 'GET',
+      });
+      assert.equal(webRes.status, 200);
+      const webMembers = webRes.body.data.members;
+      assert.equal(webMembers.length, 3);
+      assert.equal(webMembers[0].position, 'Head');
+      assert.equal(webMembers[1].position, 'Joint Head');
+      assert.equal(webMembers[2].position, 'Member');
+
+      // Register Leaders out of order
+      await request('/api/v1/iam/register', {
+        method: 'POST',
+        token: adminToken,
+        body: {
+          name: 'Joint Gen Sec',
+          email: 'jgs@aces.org',
+          team: 'Leaders',
+          position: 'Joint General Secretary',
+        },
+      });
+      await request('/api/v1/iam/register', {
+        method: 'POST',
+        token: adminToken,
+        body: {
+          name: 'Gen Sec',
+          email: 'gs@aces.org',
+          team: 'Leaders',
+          position: 'General Secretary',
+        },
+      });
+
+      const leadersRes = await request('/api/v1/iam/members?team=Leaders', {
+        method: 'GET',
+      });
+      assert.equal(leadersRes.status, 200);
+      const leaderMembers = leadersRes.body.data.members;
+      assert.equal(leaderMembers.length, 2);
+      assert.equal(leaderMembers[0].position, 'General Secretary');
+      assert.equal(leaderMembers[1].position, 'Joint General Secretary');
+
+      // Register Faculty out of order
+      await request('/api/v1/iam/register', {
+        method: 'POST',
+        token: adminToken,
+        body: {
+          name: 'Faculty Coord',
+          email: 'fc.sort@aces.org',
+          team: 'Faculty',
+          position: 'Faculty Coordinator',
+        },
+      });
+      await request('/api/v1/iam/register', {
+        method: 'POST',
+        token: adminToken,
+        body: {
+          name: 'Faculty HOD',
+          email: 'hod.sort@aces.org',
+          team: 'Faculty',
+          position: 'Head of Department',
+        },
+      });
+
+      const facultyRes = await request('/api/v1/iam/members?team=Faculty', {
+        method: 'GET',
+      });
+      assert.equal(facultyRes.status, 200);
+      const facultyMembers = facultyRes.body.data.members;
+      assert.equal(facultyMembers.length, 2);
+      assert.equal(facultyMembers[0].position, 'Head Of Department');
+      assert.equal(facultyMembers[1].position, 'Faculty Coordinator');
+    });
+  });
 });
+
 

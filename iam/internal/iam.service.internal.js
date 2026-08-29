@@ -11,6 +11,7 @@ import {
   validateTeamAndPosition,
   getRolesByTeamAndPosition,
   isInternalTeam,
+  sortMembersByRole,
 } from './teamHierarchy.service.js';
 
 export class IAMInternalService {
@@ -174,13 +175,39 @@ export class IAMInternalService {
       team: { $nin: [/Executive/i] },
     };
     if (filters.team) {
-      query.team = new RegExp(filters.team, 'i');
+      const normalizedTeamFilter = filters.team.trim().toLowerCase();
+      if (
+        normalizedTeamFilter === 'treasury and sponsorship team' ||
+        normalizedTeamFilter === 'treasury and sponsorship' ||
+        normalizedTeamFilter === 'treasury & sponsorship team' ||
+        normalizedTeamFilter === 'treasury & sponsorship' ||
+        normalizedTeamFilter === 'sponsorship team' ||
+        normalizedTeamFilter === 'sponsorship' ||
+        normalizedTeamFilter === 'treasury team' ||
+        normalizedTeamFilter === 'treasury'
+      ) {
+        query.team = { $in: [/Treasury/i, /Sponsorship/i] };
+      } else if (
+        normalizedTeamFilter === 'media and marketing team' ||
+        normalizedTeamFilter === 'media and marketing' ||
+        normalizedTeamFilter === 'media & marketing team' ||
+        normalizedTeamFilter === 'media & marketing' ||
+        normalizedTeamFilter === 'marketing team' ||
+        normalizedTeamFilter === 'marketing' ||
+        normalizedTeamFilter === 'media team' ||
+        normalizedTeamFilter === 'media'
+      ) {
+        query.team = { $in: [/Media/i, /Marketing/i] };
+      } else {
+        query.team = new RegExp(filters.team, 'i');
+      }
     }
     if (filters.status) {
       query.status = filters.status;
     }
     const members = await MemberModel.find(query);
-    return members.map((m) => m.toJSON());
+    const memberJsons = members.map((m) => m.toJSON());
+    return sortMembersByRole(memberJsons);
   }
 
   static async updateMember(id, updates, currentUser = null, file = null) {

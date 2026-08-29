@@ -5,7 +5,7 @@ team_name:
 Leaders:
     (General Secretary, Joint General Secretary)
 Faculty:
-    (Faculty)
+    (Head Of Department, Faculty Coordinator)
 Web Team:
     (Head, Joint Head, Member)
 Technical Team:

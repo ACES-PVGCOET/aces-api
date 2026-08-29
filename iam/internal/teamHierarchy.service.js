@@ -6,11 +6,10 @@ import { ValidationError } from '../../shared/errors/index.js';
 // Default static hierarchy fallback in case teams.txt cannot be loaded
 const DEFAULT_HIERARCHY = {
   'Leaders': ['General Secretary', 'Joint General Secretary'],
-  'Faculty': ['Faculty'],
+  'Faculty': ['Head of Department', 'Faculty Coordinator'],
   'Web Team': ['Head', 'Joint Head', 'Member'],
   'Technical Team': ['Head', 'Joint Head', 'Member'],
   'Media Team': ['Head', 'Joint Head', 'Member'],
-  'Marketing Team': ['Head', 'Joint Head', 'Member'],
   'Treasury Team': ['Head', 'Joint Head', 'Member'],
   'Event Team': ['Head', 'Joint Head', 'Member'],
   'Design Team': ['Head', 'Joint Head', 'Member'],
@@ -28,8 +27,15 @@ const TEAM_ROLE_MAP = {
   'technical team': ROLES.TECH_TEAM,
   'tech team': ROLES.TECH_TEAM,
   'media team': ROLES.MEDIA_TEAM,
-  'marketing team': ROLES.MARKETING_TEAM,
+  'media and marketing team': ROLES.MEDIA_TEAM,
+  'media & marketing team': ROLES.MEDIA_TEAM,
+  'marketing team': ROLES.MEDIA_TEAM,
+  'marketing': ROLES.MEDIA_TEAM,
   'treasury team': ROLES.TREASURY_TEAM,
+  'treasury and sponsorship team': ROLES.TREASURY_TEAM,
+  'treasury & sponsorship team': ROLES.TREASURY_TEAM,
+  'sponsorship team': ROLES.TREASURY_TEAM,
+  'sponsorship': ROLES.TREASURY_TEAM,
   'event team': ROLES.EVENT_TEAM,
   'events team': ROLES.EVENT_TEAM,
   'dnp team': ROLES.DESIGN_TEAM,
@@ -119,6 +125,28 @@ export function validateTeamAndPosition(team, position) {
   if (!canonicalTeam && (normalizedInputTeam === 'design team' || normalizedInputTeam === 'dnp team' || normalizedInputTeam === 'dnp' || normalizedInputTeam === 'design')) {
     canonicalTeam = teamKeys.find((key) => key.toLowerCase() === 'design team' || key.toLowerCase() === 'dnp team') || 'Design Team';
   }
+  if (!canonicalTeam && (
+    normalizedInputTeam === 'treasury and sponsorship team' ||
+    normalizedInputTeam === 'treasury and sponsorship' ||
+    normalizedInputTeam === 'treasury & sponsorship team' ||
+    normalizedInputTeam === 'treasury & sponsorship' ||
+    normalizedInputTeam === 'sponsorship team' ||
+    normalizedInputTeam === 'sponsorship' ||
+    normalizedInputTeam === 'treasury'
+  )) {
+    canonicalTeam = teamKeys.find((key) => key.toLowerCase() === 'treasury team') || 'Treasury Team';
+  }
+  if (!canonicalTeam && (
+    normalizedInputTeam === 'media and marketing team' ||
+    normalizedInputTeam === 'media and marketing' ||
+    normalizedInputTeam === 'media & marketing team' ||
+    normalizedInputTeam === 'media & marketing' ||
+    normalizedInputTeam === 'marketing team' ||
+    normalizedInputTeam === 'marketing' ||
+    normalizedInputTeam === 'media'
+  )) {
+    canonicalTeam = teamKeys.find((key) => key.toLowerCase() === 'media team') || 'Media Team';
+  }
   if (!canonicalTeam && normalizedInputTeam === 'executive team') {
     canonicalTeam = teamKeys.find((key) => key.toLowerCase() === 'executive') || 'Executive';
   }
@@ -177,3 +205,51 @@ export function isInternalTeam(team) {
   if (!team || typeof team !== 'string') return false;
   return INTERNAL_TEAMS.includes(team.trim().toLowerCase());
 }
+
+/**
+ * Calculates numeric rank for a given position string
+ * Lower rank means higher priority in hierarchy
+ */
+export function getPositionRank(position) {
+  if (!position || typeof position !== 'string') return 99;
+  const pos = position.toLowerCase().trim().replace(/_/g, ' ');
+  if (pos === 'general secretary') return 1;
+  if (pos === 'joint general secretary') return 2;
+  if (pos === 'head of department' || pos === 'head of dept' || pos === 'hod') return 1;
+  if (pos === 'faculty coordinator' || pos === 'faculty_coordinator') return 2;
+  if (pos === 'head') return 1;
+  if (pos === 'joint head' || pos === 'joint_head') return 2;
+  if (pos === 'member') return 3;
+  return 99;
+}
+
+/**
+ * Sorts array of members according to team hierarchy order and position rank
+ */
+export function sortMembersByRole(members) {
+  if (!Array.isArray(members)) return [];
+  const hierarchy = getTeamHierarchy();
+  const teamKeys = Object.keys(hierarchy);
+
+  const getTeamIndex = (teamName) => {
+    if (!teamName) return 999;
+    const normalized = teamName.trim().toLowerCase();
+    const idx = teamKeys.findIndex((k) => k.toLowerCase() === normalized);
+    return idx >= 0 ? idx : 999;
+  };
+
+  return [...members].sort((a, b) => {
+    const teamIdxA = getTeamIndex(a.team);
+    const teamIdxB = getTeamIndex(b.team);
+    if (teamIdxA !== teamIdxB) {
+      return teamIdxA - teamIdxB;
+    }
+    const rankA = getPositionRank(a.position);
+    const rankB = getPositionRank(b.position);
+    if (rankA !== rankB) {
+      return rankA - rankB;
+    }
+    return 0;
+  });
+}
+

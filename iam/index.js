@@ -3,6 +3,8 @@ import {
   validateTeamAndPosition,
   getRolesByTeamAndPosition,
   isInternalTeam,
+  getPositionRank,
+  sortMembersByRole,
 } from './internal/teamHierarchy.service.js';
 import {
   hasAuthority,
@@ -68,6 +70,16 @@ export const IAMService = {
    * Checks if team is internal only
    */
   isInternalTeam: (team) => isInternalTeam(team),
+
+  /**
+   * Calculates numeric rank for a given position string
+   */
+  getPositionRank: (position) => getPositionRank(position),
+
+  /**
+   * Sorts array of members according to role hierarchy
+   */
+  sortMembersByRole: (members) => sortMembersByRole(members),
 
   /**
    * Checks if roles satisfy authority pattern
