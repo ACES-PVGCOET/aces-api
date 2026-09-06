@@ -80,6 +80,10 @@ aces_api/
 │   ├── index.js                # PUBLIC CONTRACT (Exports IAMService)
 │   ├── http/                   # HTTP Controllers & Routes
 │   └── internal/               # PRIVATE (Mongoose Schemas, Internal Services)
+├── membership/                 # Membership & Fee Verification Module
+│   ├── index.js                # PUBLIC CONTRACT (Exports MembershipService)
+│   ├── http/                   # HTTP Controllers & Routes
+│   └── internal/               # PRIVATE (Membership Schema, Bulk & Excel Importers)
 ├── events/                     # Event Management Module
 │   ├── index.js                # PUBLIC CONTRACT (Exports EventsService)
 │   ├── http/                   # HTTP Controllers & Routes
@@ -105,10 +109,10 @@ aces_api/
 
 1. **Private Directory Seclusion**: No file outside a module may import from that module's `internal/` directory.
    ```javascript
-   //  PROHIBITED: Importing internal models across domain boundaries
+   // ❌ PROHIBITED: Importing internal models across domain boundaries
    import { Form } from '../forms/internal/form.model.js';
 
-   //  APPROVED: Invoking public module service contract
+   // ✅ APPROVED: Invoking public module service contract
    import { FormsService } from '../forms/index.js';
    ```
 2. **Public Service Facade**: Each module root exports an explicit interface (`index.js`) encapsulating business operations.
@@ -143,6 +147,7 @@ erDiagram
     MEMBER ||--o{ ANNOUNCEMENT : "creates / updates"
     MEMBER ||--o{ FORM : "creates"
     MEMBER ||--o{ FORM_RESPONSE : "submits"
+    MEMBER ||--o{ MEMBERSHIP : "verifies (0..n)"
     FORM ||--|{ QUESTION : "contains (1..n)"
     FORM ||--o{ FORM_RESPONSE : "collects (0..n)"
     EVENT }o--o| FORM : "links registration form (0..1)"
@@ -160,6 +165,27 @@ erDiagram
         string onboarding_token
         date onboarding_token_expires_at
         object social_links
+    }
+
+    MEMBERSHIP {
+        ObjectId id PK
+        string full_name
+        string email
+        string class_name "SE | TE | BE"
+        string contact_number
+        string payment_mode "UPI | CASH | OTHER"
+        string payment_date
+        number amount
+        string transaction_ss_url
+        string status "PENDING | VERIFIED | REJECTED"
+        string verified_by
+        ObjectId verified_by_id FK
+        date verified_at
+        string receipt_number
+        string receipt_status "NOT_SENT | QUEUED | SENT"
+        string remarks
+        string registration_timestamp
+        string source
     }
 
     EVENT {

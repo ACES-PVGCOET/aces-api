@@ -1,6 +1,5 @@
 import { execFile } from 'child_process';
 import util from 'util';
-import path from 'path';
 import fs from 'fs';
 import { MembershipModel, MEMBERSHIP_STATUS, RECEIPT_STATUS } from './membership.model.js';
 import { NotFoundError, ValidationError, ConflictError } from '../../shared/errors/index.js';

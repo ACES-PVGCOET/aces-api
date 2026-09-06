@@ -20,6 +20,7 @@ This document serves as the **Single Source of Truth (SSOT)** for all RESTful AP
 6. [Forms & Responses Module](#6-forms--responses-module)
 7. [Announcements Module](#7-announcements-module)
 8. [Gallery & Digital Asset Management Module](#8-gallery--digital-asset-management-module)
+9. [Membership & Fee Verification Module](#9-membership--fee-verification-module)
 
 ---
 
@@ -110,11 +111,13 @@ Access to protected endpoints is governed by an **Authority Resolution Engine** 
 {
   "authorities": {
     "*.*": ["admin"],
+    "members.register": ["admin", "team_admin"],
     "members.*": ["admin"],
     "events.*": ["event_team"],
     "announcements.*": ["marketing_team"],
-    "forms.*": ["event_team", "editorial_team"],
+    "forms.*": ["event_team", "editorial_team", "web_team", "tech_team", "leader"],
     "gallery.*": ["media_team", "editorial_team"],
+    "membership.*": ["admin", "treasury_team", "web_team", "leader"],
     "*.read": ["*"]
   }
 }
@@ -1291,4 +1294,357 @@ Removes a photo or video item from the gallery.
     "error": null
   }
   ```
+
+---
+
+## 9. Membership & Fee Verification Module
+
+### 9.1 List & Filter Membership Registrations
+Retrieves a paginated list of student membership fee records with search and multifaceted filtering.
+
+- **Method**: `GET`
+- **Endpoint**: `/api/v1/membership`
+- **Auth**: Optional / Public
+- **Query Parameters**:
+  | Parameter | Type | Default | Description |
+  | :--- | :--- | :--- | :--- |
+  | `status` | `String` | `ALL` | Filter by status: `PENDING`, `VERIFIED`, `REJECTED`, or `ALL` |
+  | `class` | `String` | `ALL` | Filter by class: `SE`, `TE`, `BE`, or `ALL` |
+  | `payment_mode` | `String` | `ALL` | Filter by payment mode: `UPI`, `CASH`, `OTHER`, or `ALL` |
+  | `search` | `String` | `""` | Search query across student name, contact, email, and receipt number |
+  | `page` | `Number` | `1` | Page number (1-indexed) |
+  | `limit` | `Number` | `100` | Results per page (max `500`) |
+  | `sort_by` | `String` | `newest` | Sort order: `newest`, `oldest`, `name-asc`, `name-desc` |
+
+- **Response (`200 OK`)**:
+  ```json
+  {
+    "success": true,
+    "data": {
+      "items": [
+        {
+          "id": "66bc600011223344556677aa",
+          "full_name": "Aditya Kulkarni",
+          "email": "aditya.k@college.edu",
+          "class_name": "TE",
+          "contact_number": "9876543210",
+          "payment_mode": "UPI",
+          "payment_date": "14/08/2026",
+          "amount": 450,
+          "transaction_ss_url": "https://res.cloudinary.com/aces/image/upload/v1/receipt.jpg",
+          "status": "VERIFIED",
+          "verified_by": "Treasury Lead",
+          "verified_by_id": "66bc1234567890abcdef1001",
+          "verified_at": "2026-08-15T10:30:00.000Z",
+          "receipt_number": "ACES-2026-4921",
+          "receipt_status": "NOT_SENT",
+          "remarks": "Payment confirmed in Bank Statement",
+          "registration_timestamp": "14/08/2026 18:22:10",
+          "source": "manual_cms",
+          "createdAt": "2026-08-14T18:22:10.000Z",
+          "updatedAt": "2026-08-15T10:30:00.000Z"
+        }
+      ],
+      "total": 1,
+      "page": 1,
+      "limit": 100,
+      "totalPages": 1,
+      "stats": {
+        "total": 1,
+        "pending": 0,
+        "verified": 1,
+        "rejected": 0,
+        "byClass": {
+          "TE": 1
+        },
+        "byMode": {
+          "UPI": 1
+        },
+        "totalCollected": 450
+      }
+    },
+    "error": null
+  }
+  ```
+- **cURL Example**:
+  ```bash
+  curl -X GET "http://localhost:5000/api/v1/membership?status=PENDING&class=TE"
+  ```
+
+---
+
+### 9.2 Get Membership Statistics
+Retrieves summary statistics and distribution by class, payment mode, and verified funds collected.
+
+- **Method**: `GET`
+- **Endpoint**: `/api/v1/membership/stats`
+- **Auth**: Optional / Public
+- **Response (`200 OK`)**:
+  ```json
+  {
+    "success": true,
+    "data": {
+      "total": 145,
+      "pending": 23,
+      "verified": 118,
+      "rejected": 4,
+      "byClass": {
+        "SE": 62,
+        "TE": 48,
+        "BE": 35
+      },
+      "byMode": {
+        "UPI": 135,
+        "CASH": 10
+      },
+      "totalCollected": 53100
+    },
+    "error": null
+  }
+  ```
+- **cURL Example**:
+  ```bash
+  curl -X GET http://localhost:5000/api/v1/membership/stats
+  ```
+
+---
+
+### 9.3 Get Membership Registration by ID
+Retrieves details of a single student membership record.
+
+- **Method**: `GET`
+- **Endpoint**: `/api/v1/membership/:id`
+- **Auth**: Optional / Public
+- **Response (`200 OK`)**:
+  ```json
+  {
+    "success": true,
+    "data": {
+      "id": "66bc600011223344556677aa",
+      "full_name": "Aditya Kulkarni",
+      "email": "aditya.k@college.edu",
+      "class_name": "TE",
+      "contact_number": "9876543210",
+      "payment_mode": "UPI",
+      "amount": 450,
+      "status": "PENDING",
+      "transaction_ss_url": "https://res.cloudinary.com/aces/image/upload/v1/receipt.jpg"
+    },
+    "error": null
+  }
+  ```
+
+---
+
+### 9.4 Create Membership Registration
+Creates a new membership registration. Supports either JSON payload or `multipart/form-data` with an image file under `receipt_file`.
+
+- **Method**: `POST`
+- **Endpoint**: `/api/v1/membership`
+- **Auth**: Optional / Public
+- **Content-Type**: `application/json` or `multipart/form-data`
+- **Request Body (JSON)**:
+  ```json
+  {
+    "full_name": "Neha Patil",
+    "email": "neha.patil@college.edu",
+    "class_name": "SE",
+    "contact_number": "9823456789",
+    "payment_mode": "UPI",
+    "payment_date": "15/08/2026",
+    "amount": 450,
+    "transaction_ss_url": "https://res.cloudinary.com/aces/image/upload/v1/ss.jpg",
+    "remarks": "Transaction ID 52819203910"
+  }
+  ```
+- **Response (`201 Created`)**:
+  ```json
+  {
+    "success": true,
+    "data": {
+      "id": "66bc600011223344556677bb",
+      "full_name": "Neha Patil",
+      "email": "neha.patil@college.edu",
+      "class_name": "SE",
+      "contact_number": "9823456789",
+      "payment_mode": "UPI",
+      "amount": 450,
+      "status": "PENDING",
+      "transaction_ss_url": "https://res.cloudinary.com/aces/image/upload/v1/ss.jpg"
+    },
+    "error": null
+  }
+  ```
+- **cURL Example**:
+  ```bash
+  curl -X POST http://localhost:5000/api/v1/membership \
+    -H "Content-Type: application/json" \
+    -d '{
+      "full_name": "Neha Patil",
+      "class_name": "SE",
+      "contact_number": "9823456789",
+      "payment_mode": "UPI"
+    }'
+  ```
+
+---
+
+### 9.5 Verify / Reject Membership Fee
+Updates the verification state of a student membership. Automatically records the verifier's identity, timestamps, and assigns an official receipt number upon verification.
+
+- **Method**: `PATCH`
+- **Endpoint**: `/api/v1/membership/:id/verify`
+- **Auth**: Authenticated (`admin`, `treasury_team`, `web_team`, `leader`)
+- **Request Body**:
+  ```json
+  {
+    "status": "VERIFIED",
+    "remarks": "UPI UTR verified on bank portal",
+    "amount": 450,
+    "receipt_number": "ACES-2026-5501"
+  }
+  ```
+- **Response (`200 OK`)**:
+  ```json
+  {
+    "success": true,
+    "data": {
+      "id": "66bc600011223344556677bb",
+      "full_name": "Neha Patil",
+      "status": "VERIFIED",
+      "verified_by": "Treasury Lead",
+      "verified_at": "2026-08-15T11:00:00.000Z",
+      "receipt_number": "ACES-2026-5501",
+      "receipt_status": "NOT_SENT",
+      "remarks": "UPI UTR verified on bank portal"
+    },
+    "error": null
+  }
+  ```
+- **cURL Example**:
+  ```bash
+  curl -X PATCH http://localhost:5000/api/v1/membership/66bc600011223344556677bb/verify \
+    -H "Authorization: Bearer <your_jwt_token>" \
+    -H "Content-Type: application/json" \
+    -d '{
+      "status": "VERIFIED",
+      "remarks": "Bank statement matched"
+    }'
+  ```
+
+---
+
+### 9.6 Update Membership Details
+Updates details of an existing membership record.
+
+- **Method**: `PUT`
+- **Endpoint**: `/api/v1/membership/:id`
+- **Auth**: Authenticated (`admin`, `treasury_team`, `web_team`, `leader`)
+- **Request Body**:
+  ```json
+  {
+    "full_name": "Neha S. Patil",
+    "email": "neha.patil@gmail.com",
+    "amount": 450
+  }
+  ```
+- **Response (`200 OK`)**:
+  ```json
+  {
+    "success": true,
+    "data": {
+      "id": "66bc600011223344556677bb",
+      "full_name": "Neha S. Patil",
+      "email": "neha.patil@gmail.com"
+    },
+    "error": null
+  }
+  ```
+
+---
+
+### 9.7 Delete Membership Record
+Deletes a membership registration from the database.
+
+- **Method**: `DELETE`
+- **Endpoint**: `/api/v1/membership/:id`
+- **Auth**: Authenticated (`admin`, `treasury_team`, `web_team`, `leader`)
+- **Response (`200 OK`)**:
+  ```json
+  {
+    "success": true,
+    "data": {
+      "message": "Membership record deleted successfully."
+    },
+    "error": null
+  }
+  ```
+
+---
+
+### 9.8 Bulk Import Registrations
+Imports an array of registration records in a single batch, deduplicating records by student name and phone number.
+
+- **Method**: `POST`
+- **Endpoint**: `/api/v1/membership/bulk-import`
+- **Auth**: Authenticated (`admin`, `treasury_team`, `web_team`, `leader`)
+- **Request Body**:
+  ```json
+  {
+    "records": [
+      {
+        "full_name": "Rahul Deshmukh",
+        "email": "rahul.d@college.edu",
+        "class_name": "BE",
+        "contact_number": "9765432100",
+        "payment_mode": "UPI",
+        "payment_date": "14/08/2026",
+        "amount": 450,
+        "transaction_ss_url": "https://drive.google.com/open?id=1AbCdEfGh"
+      }
+    ]
+  }
+  ```
+- **Response (`200 OK`)**:
+  ```json
+  {
+    "success": true,
+    "data": {
+      "importedCount": 1,
+      "skippedCount": 0,
+      "totalSubmitted": 1,
+      "errors": []
+    },
+    "error": null
+  }
+  ```
+
+---
+
+### 9.9 Import from Local Excel Sheet
+Parses a local Excel file (`.xlsx`), normalizes phone numbers and classes, and bulk imports student registrations.
+
+- **Method**: `POST`
+- **Endpoint**: `/api/v1/membership/import-local-sheet`
+- **Auth**: Authenticated (`admin`, `treasury_team`, `web_team`, `leader`)
+- **Request Body**:
+  ```json
+  {
+    "file_path": "/path/to/membership_responses.xlsx"
+  }
+  ```
+- **Response (`200 OK`)**:
+  ```json
+  {
+    "success": true,
+    "data": {
+      "importedCount": 73,
+      "skippedCount": 0,
+      "totalSubmitted": 73,
+      "errors": []
+    },
+    "error": null
+  }
+  ```
+
 

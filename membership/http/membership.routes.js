@@ -1,27 +1,56 @@
 import { Router } from 'express';
 import * as controller from './membership.controller.js';
-import { optionalAuthenticate } from '../../orchestration/http/middleware/auth.js';
+import {
+  authenticate,
+  optionalAuthenticate,
+  authorize,
+} from '../../orchestration/http/middleware/auth.js';
 import { uploadSingle } from '../../shared/middleware/uploadMiddleware.js';
 
 const router = Router();
 
-// Statistics
+// Statistics (Public/Optional auth)
 router.get('/stats', optionalAuthenticate, controller.getStats);
 
-// Local Excel Import
-router.post('/import-local-sheet', optionalAuthenticate, controller.importLocalSheet);
+// Local Excel Import (Management - Protected)
+router.post(
+  '/import-local-sheet',
+  authenticate,
+  authorize('membership.import'),
+  controller.importLocalSheet
+);
 
-// Bulk Import
-router.post('/bulk-import', optionalAuthenticate, controller.bulkImportMemberships);
+// Bulk Import (Management - Protected)
+router.post(
+  '/bulk-import',
+  authenticate,
+  authorize('membership.import'),
+  controller.bulkImportMemberships
+);
 
-// List and Create
+// List and Create (Public student registration with optional auth)
 router.get('/', optionalAuthenticate, controller.listMemberships);
 router.post('/', optionalAuthenticate, uploadSingle('receipt_file'), controller.createMembership);
 
 // Single Item Operations
 router.get('/:id', optionalAuthenticate, controller.getMembershipById);
-router.patch('/:id/verify', optionalAuthenticate, controller.verifyMembership);
-router.put('/:id', optionalAuthenticate, controller.updateMembership);
-router.delete('/:id', optionalAuthenticate, controller.deleteMembership);
+router.patch(
+  '/:id/verify',
+  authenticate,
+  authorize('membership.verify'),
+  controller.verifyMembership
+);
+router.put(
+  '/:id',
+  authenticate,
+  authorize('membership.update'),
+  controller.updateMembership
+);
+router.delete(
+  '/:id',
+  authenticate,
+  authorize('membership.delete'),
+  controller.deleteMembership
+);
 
 export default router;
