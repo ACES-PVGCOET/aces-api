@@ -6,7 +6,6 @@ export const ROLES = {
   TREASURY_TEAM: 'treasury_team',
   EVENT_TEAM: 'event_team',
   EDITORIAL_TEAM: 'editorial_team',
-  MARKETING_TEAM: 'marketing_team',
   FACULTY: 'faculty',
   DESIGN_TEAM: 'design_team',
   PRODUCTION_TEAM: 'production_team',

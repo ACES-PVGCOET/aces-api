@@ -48,6 +48,7 @@ export async function clearDatabase() {
       EventModel.deleteMany({}),
       GalleryItemModel.deleteMany({}),
       MemberModel.deleteMany({}),
+      mongoose.connection.collection('memberships')?.deleteMany({}),
     ]);
   }
 }
@@ -70,8 +71,8 @@ export async function stopTestServer() {
 /**
  * Helper to generate JWT tokens for specified test roles with valid 24-char hex ObjectIds
  */
-export function generateTestToken({ id = '66b64f9e1234567890000001', roles = ['admin'], email = 'test@aces.org', team = 'Executive', position = 'Admin' } = {}) {
-  const payload = { id, roles, email, team, position };
+export function generateTestToken({ id = '66b64f9e1234567890000001', roles = ['admin'], email = 'test@aces.org', team = 'Executive', position = 'Admin', name = 'Admin Lead' } = {}) {
+  const payload = { id, roles, email, team, position, name };
   return jwt.sign(payload, config.jwt.secret, { expiresIn: '1h' });
 }
 
@@ -99,15 +100,32 @@ export async function request(endpoint, options = {}) {
   }
 
   const res = await fetch(url, fetchOptions);
+  const contentType = res.headers.get('content-type') || '';
   let data;
-  try {
-    data = await res.json();
-  } catch (_e) {
+  let buffer = null;
+
+  if (contentType.includes('application/json')) {
+    try {
+      data = await res.json();
+    } catch (_e) {
+      data = null;
+    }
+  } else if (contentType.includes('image/')) {
+    const arrayBuffer = await res.arrayBuffer();
+    buffer = Buffer.from(arrayBuffer);
     data = null;
+  } else {
+    try {
+      data = await res.json();
+    } catch (_e) {
+      data = null;
+    }
   }
 
   return {
     status: res.status,
+    headers: Object.fromEntries(res.headers.entries()),
     body: data,
+    buffer,
   };
 }

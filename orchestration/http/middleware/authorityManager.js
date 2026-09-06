@@ -5,11 +5,13 @@ import { ROLES } from '../../../shared/constants/index.js';
 // Default static rules fallback
 const DEFAULT_AUTHORITIES = {
   '*.*': [ROLES.ADMIN],
+  'members.register': [ROLES.ADMIN, ROLES.TEAM_ADMIN],
   'members.*': [ROLES.ADMIN],
   'events.*': [ROLES.EVENT_TEAM],
   'announcements.*': [ROLES.MARKETING_TEAM],
-  'forms.*': [ROLES.EVENT_TEAM, ROLES.EDITORIAL_TEAM],
+  'forms.*': [ROLES.EVENT_TEAM, ROLES.EDITORIAL_TEAM, ROLES.WEB_TEAM, ROLES.TECH_TEAM, ROLES.LEADER],
   'gallery.*': [ROLES.MEDIA_TEAM, ROLES.EDITORIAL_TEAM],
+  'membership.*': [ROLES.ADMIN, ROLES.TREASURY_TEAM, ROLES.WEB_TEAM, ROLES.LEADER],
   '*.read': ['*'],
 };
 
