@@ -32,6 +32,10 @@ router.post(
 router.get('/', optionalAuthenticate, controller.listMemberships);
 router.post('/', optionalAuthenticate, uploadSingle('receipt_file'), controller.createMembership);
 
+// Digital ID Card (Public - only verified members)
+router.get('/id-card/:membershipNo', optionalAuthenticate, controller.getIdCard);
+router.get('/id-card', optionalAuthenticate, controller.getIdCard);
+
 // Single Item Operations
 router.get('/:id', optionalAuthenticate, controller.getMembershipById);
 router.patch(

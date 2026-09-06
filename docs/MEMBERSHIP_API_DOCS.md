@@ -244,6 +244,25 @@ Retrieves details of a specific membership record.
 
 ---
 
+### 5.4 Get Digital ID Card Image
+Generates and returns the official digital ID card in PNG format for a member. This endpoint succeeds if and only if the member's registration has been verified (`status === 'VERIFIED'`); otherwise, an error is returned.
+
+- **Method**: `GET`
+- **Endpoint**: `/api/v1/membership/id-card/:membershipNo` (or `/api/v1/membership/id-card?membership_no=<number>`)
+- **Auth**: Optional
+- **Parameters**:
+  - `membershipNo` (path/query): The membership receipt number (e.g. `ACES-2026-4921`) or registration ObjectId.
+- **Success Response (`200 OK`)**:
+  - **Content-Type**: `image/png`
+  - **Content-Disposition**: `inline; filename="ACES-ID-<number>.png"`
+  - **Body**: Binary PNG image stream.
+- **Error Responses**:
+  - `400 Bad Request`: When membership number is missing.
+  - `403 Forbidden`: When membership status is not `VERIFIED` (e.g. `PENDING` or `REJECTED`).
+  - `404 Not Found`: When no registration matches the provided membership number.
+
+---
+
 ### 5.4 Create Membership Registration
 Creates a new membership registration record. Supports both JSON payloads and `multipart/form-data` with direct receipt screenshot file uploads.
 

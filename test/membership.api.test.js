@@ -134,6 +134,36 @@ describe('Membership & Fee Verification Module API Tests', () => {
       assert.equal(statsRes.body.data.totalCollected, 450);
     });
 
+    it('should generate ID card, dispatch welcome email, and set receipt_status to SENT when member has an email', async () => {
+      const createRes = await request('/api/v1/membership', {
+        method: 'POST',
+        body: {
+          full_name: 'Pooja Deshpande',
+          email: 'pooja.deshpande@college.edu',
+          class_name: 'TE',
+          contact_number: '9822334455',
+          payment_mode: 'UPI',
+        },
+      });
+
+      assert.equal(createRes.status, 201);
+      const memberId = createRes.body.data.id;
+
+      const verifyRes = await request(`/api/v1/membership/${memberId}/verify`, {
+        method: 'PATCH',
+        token: treasuryToken,
+        body: {
+          status: 'VERIFIED',
+          remarks: 'Verified fee payment',
+        },
+      });
+
+      assert.equal(verifyRes.status, 200);
+      assert.equal(verifyRes.body.data.status, 'VERIFIED');
+      assert.equal(verifyRes.body.data.receipt_status, 'SENT');
+      assert.ok(verifyRes.body.data.receipt_number);
+    });
+
     it('should allow admin to reject a membership fee with reason', async () => {
       const createRes = await request('/api/v1/membership', {
         method: 'POST',
@@ -322,4 +352,69 @@ describe('Membership & Fee Verification Module API Tests', () => {
       assert.equal(reimportRes.body.data.skippedCount, 73);
     });
   });
+
+  describe('GET /api/v1/membership/id-card/:membershipNo (Digital ID Card Retrieval)', () => {
+    it('should return 404 when membership number does not exist', async () => {
+      const res = await request('/api/v1/membership/id-card/NONEXISTENT-NO');
+      assert.equal(res.status, 404);
+      assert.equal(res.body.success, false);
+      assert.equal(res.body.error.code, 'NOT_FOUND');
+    });
+
+    it('should return 403 error when member is not yet verified (PENDING status)', async () => {
+      const createRes = await request('/api/v1/membership', {
+        method: 'POST',
+        body: {
+          full_name: 'Pending Student',
+          class_name: 'SE',
+          contact_number: '9888877771',
+        },
+      });
+      assert.equal(createRes.status, 201);
+      const memberId = createRes.body.data.id;
+
+      const res = await request(`/api/v1/membership/id-card/${memberId}`);
+      assert.equal(res.status, 403);
+      assert.equal(res.body.success, false);
+      assert.equal(res.body.error.code, 'FORBIDDEN');
+      assert.ok(res.body.error.message.includes('not verified'));
+    });
+
+    it('should return 200 and image/png ID card when member is verified', async () => {
+      const createRes = await request('/api/v1/membership', {
+        method: 'POST',
+        body: {
+          full_name: 'Verified Student',
+          class_name: 'TE',
+          contact_number: '9888877772',
+        },
+      });
+      assert.equal(createRes.status, 201);
+      const memberId = createRes.body.data.id;
+
+      // Verify the member
+      const verifyRes = await request(`/api/v1/membership/${memberId}/verify`, {
+        method: 'PATCH',
+        token: treasuryToken,
+        body: {
+          status: 'VERIFIED',
+          receipt_number: 'ACES-2026-TEST99',
+        },
+      });
+      assert.equal(verifyRes.status, 200);
+
+      // Fetch ID card by receipt/membership number
+      const cardRes = await request('/api/v1/membership/id-card/ACES-2026-TEST99');
+      assert.equal(cardRes.status, 200);
+      assert.equal(cardRes.headers['content-type'], 'image/png');
+      assert.ok(cardRes.headers['content-disposition'].includes('ACES-ID-ACES-2026-TEST99.png'));
+      assert.ok(cardRes.buffer && cardRes.buffer.length > 10000);
+      // Verify PNG magic bytes
+      assert.equal(cardRes.buffer[0], 0x89);
+      assert.equal(cardRes.buffer[1], 0x50);
+      assert.equal(cardRes.buffer[2], 0x4e);
+      assert.equal(cardRes.buffer[3], 0x47);
+    });
+  });
 });
+

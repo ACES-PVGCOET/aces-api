@@ -4,6 +4,7 @@ import { MembershipModel, MEMBERSHIP_STATUS, PAYMENT_MODES, RECEIPT_STATUS } fro
 export const MembershipService = {
   listMemberships: MembershipInternalService.listMemberships.bind(MembershipInternalService),
   getMembershipById: MembershipInternalService.getMembershipById.bind(MembershipInternalService),
+  getIdCardByMembershipNumber: MembershipInternalService.getIdCardByMembershipNumber.bind(MembershipInternalService),
   createMembership: MembershipInternalService.createMembership.bind(MembershipInternalService),
   verifyMembership: MembershipInternalService.verifyMembership.bind(MembershipInternalService),
   updateMembership: MembershipInternalService.updateMembership.bind(MembershipInternalService),

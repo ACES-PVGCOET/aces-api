@@ -1,9 +1,12 @@
 import { execFile } from 'child_process';
 import util from 'util';
 import fs from 'fs';
+import mongoose from 'mongoose';
 import { MembershipModel, MEMBERSHIP_STATUS, RECEIPT_STATUS } from './membership.model.js';
-import { NotFoundError, ValidationError, ConflictError } from '../../shared/errors/index.js';
+import { NotFoundError, ValidationError, ConflictError, ForbiddenError } from '../../shared/errors/index.js';
 import { processUploadedFile } from '../../shared/utils/fileUpload.js';
+import { generateIdCardPng, calculateValidUpto } from '../../shared/utils/idCardGenerator.js';
+import { sendMembershipVerificationEmail } from '../../shared/utils/mailer.js';
 
 const execFileAsync = util.promisify(execFile);
 
@@ -133,6 +136,47 @@ export class MembershipInternalService {
   }
 
   /**
+   * Retrieve and render digital ID card in PNG format by membership number
+   */
+  static async getIdCardByMembershipNumber(membershipNo) {
+    if (!membershipNo || !membershipNo.trim()) {
+      throw new ValidationError('Membership number is required.');
+    }
+
+    const cleanNo = membershipNo.trim();
+    let record = await MembershipModel.findOne({
+      receipt_number: new RegExp(`^${cleanNo}$`, 'i'),
+    });
+
+    if (!record && mongoose.Types.ObjectId.isValid(cleanNo)) {
+      record = await MembershipModel.findById(cleanNo);
+    }
+
+    if (!record) {
+      throw new NotFoundError(`Membership registration with number '${cleanNo}' not found.`);
+    }
+
+    if (record.status !== MEMBERSHIP_STATUS.VERIFIED) {
+      throw new ForbiddenError(
+        `Membership registration is not verified (current status: ${record.status}). ID card is only available for verified members.`
+      );
+    }
+
+    const validUpto = calculateValidUpto(record.verified_at || record.createdAt);
+    const pngBuffer = await generateIdCardPng({
+      fullName: record.full_name,
+      membershipNo: record.receipt_number || cleanNo,
+      validUpto,
+    });
+
+    return {
+      pngBuffer,
+      receiptNumber: record.receipt_number || cleanNo,
+      record: record.toJSON(),
+    };
+  }
+
+  /**
    * Create a single membership registration
    */
   static async createMembership(data, file = null) {
@@ -213,6 +257,34 @@ export class MembershipInternalService {
         record.receipt_number = (receipt_number && receipt_number.trim()) || generateReceiptNumber();
       }
       record.receipt_status = RECEIPT_STATUS.NOT_SENT;
+
+      if (record.email && record.email.trim()) {
+        try {
+          const validUpto = calculateValidUpto(record.verified_at);
+          const idCardBuffer = await generateIdCardPng({
+            fullName: record.full_name,
+            membershipNo: record.receipt_number,
+            validUpto,
+          });
+
+          const mailResult = await sendMembershipVerificationEmail({
+            email: record.email.trim(),
+            name: record.full_name,
+            membershipNo: record.receipt_number,
+            validUpto,
+            idCardBuffer,
+          });
+
+          if (mailResult && mailResult.success) {
+            record.receipt_status = RECEIPT_STATUS.SENT;
+          }
+        } catch (mailError) {
+          console.error(
+            `[Membership] Failed to generate/send ID card email to ${record.email}:`,
+            mailError.message
+          );
+        }
+      }
     } else if (targetStatus === MEMBERSHIP_STATUS.REJECTED) {
       record.verified_at = new Date();
       record.verified_by = currentUser?.name || currentUser?.email || 'Admin';

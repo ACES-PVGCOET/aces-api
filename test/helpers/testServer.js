@@ -100,15 +100,32 @@ export async function request(endpoint, options = {}) {
   }
 
   const res = await fetch(url, fetchOptions);
+  const contentType = res.headers.get('content-type') || '';
   let data;
-  try {
-    data = await res.json();
-  } catch (_e) {
+  let buffer = null;
+
+  if (contentType.includes('application/json')) {
+    try {
+      data = await res.json();
+    } catch (_e) {
+      data = null;
+    }
+  } else if (contentType.includes('image/')) {
+    const arrayBuffer = await res.arrayBuffer();
+    buffer = Buffer.from(arrayBuffer);
     data = null;
+  } else {
+    try {
+      data = await res.json();
+    } catch (_e) {
+      data = null;
+    }
   }
 
   return {
     status: res.status,
+    headers: Object.fromEntries(res.headers.entries()),
     body: data,
+    buffer,
   };
 }

@@ -104,3 +104,16 @@ export const importLocalSheet = async (req, res, next) => {
     next(error);
   }
 };
+
+export const getIdCard = async (req, res, next) => {
+  try {
+    const membershipNo = req.params.membershipNo || req.query.membership_no || req.query.membershipNo;
+    const { pngBuffer, receiptNumber } = await MembershipInternalService.getIdCardByMembershipNumber(membershipNo);
+
+    res.setHeader('Content-Type', 'image/png');
+    res.setHeader('Content-Disposition', `inline; filename="ACES-ID-${receiptNumber}.png"`);
+    return res.status(200).send(pngBuffer);
+  } catch (error) {
+    next(error);
+  }
+};
