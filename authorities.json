@@ -7,6 +7,7 @@
     "announcements.*": ["marketing_team"],
     "forms.*": ["event_team", "editorial_team", "web_team", "tech_team", "leader"],
     "gallery.*": ["media_team", "editorial_team"],
+    "membership.*": ["admin", "treasury_team", "web_team", "leader"],
     "*.read": ["*"]
   }
 }
