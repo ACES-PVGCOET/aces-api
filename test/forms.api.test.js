@@ -751,4 +751,182 @@ describe('Forms Module API Tests', () => {
       assert.equal(res.body.error.code, 'INVALID_INPUT');
     });
   });
+
+  describe('PAYMENT_ACCEPTANCE Question Type Tests', () => {
+    it('should reject payment_acceptance question with missing or non-positive amount', async () => {
+      const payload = {
+        title: 'Event with Fee',
+        questions: [
+          {
+            question_serial: 1,
+            question_type: 'PAYMENT_ACCEPTANCE',
+            payment_policy: {
+              amount: 0,
+              primary_qr_url: 'https://res.cloudinary.com/aces/image/upload/v1/qr1.png',
+            },
+          },
+        ],
+      };
+      const res = await request('/api/v1/forms', {
+        method: 'POST',
+        token: eventTeamToken,
+        body: payload,
+      });
+      assert.equal(res.status, 400);
+      assert.equal(res.body.error.code, 'INVALID_INPUT');
+      assert.match(res.body.error.message, /Valid payment amount/);
+    });
+
+    it('should reject payment_acceptance question without primary QR image', async () => {
+      const payload = {
+        title: 'Event with Fee',
+        questions: [
+          {
+            question_serial: 1,
+            question_type: 'payment_acceptance',
+            payment_policy: {
+              amount: 250,
+              primary_qr_url: '',
+            },
+          },
+        ],
+      };
+      const res = await request('/api/v1/forms', {
+        method: 'POST',
+        token: eventTeamToken,
+        body: payload,
+      });
+      assert.equal(res.status, 400);
+      assert.equal(res.body.error.code, 'INVALID_INPUT');
+      assert.match(res.body.error.message, /Primary QR code image is required/);
+    });
+
+    it('should create form with payment_acceptance, auto-generate statement and default to is_required: true', async () => {
+      const payload = {
+        title: 'Workshop Registration Fee',
+        description: 'Payment required for entry',
+        questions: [
+          {
+            question_serial: 1,
+            question_type: 'PAYMENT_ACCEPTANCE',
+            payment_policy: {
+              amount: 300,
+              primary_qr_url: 'https://res.cloudinary.com/aces/image/upload/v1/qr_primary.png',
+              fallback_qr_url: 'https://res.cloudinary.com/aces/image/upload/v1/qr_fallback.png',
+            },
+          },
+        ],
+      };
+
+      const res = await request('/api/v1/forms', {
+        method: 'POST',
+        token: eventTeamToken,
+        body: payload,
+      });
+
+      assert.equal(res.status, 201);
+      assert.equal(res.body.success, true);
+      const formId = res.body.data.form_id;
+
+      const getRes = await request(`/api/v1/forms/${formId}`);
+      assert.equal(getRes.status, 200);
+      const q = getRes.body.data.questions[0];
+
+      assert.equal(q.question_type, 'payment_acceptance');
+      assert.equal(q.is_required, true);
+      assert.equal(q.payment_policy.amount, 300);
+      assert.equal(q.payment_policy.primary_qr_url, 'https://res.cloudinary.com/aces/image/upload/v1/qr_primary.png');
+      assert.equal(q.payment_policy.fallback_qr_url, 'https://res.cloudinary.com/aces/image/upload/v1/qr_fallback.png');
+      assert.match(q.question_statement, /Please pay ₹300 using one of the following QR codes/);
+    });
+
+    it('should handle single primary QR auto-statement correctly', async () => {
+      const payload = {
+        title: 'Single QR Event',
+        questions: [
+          {
+            question_serial: 1,
+            question_type: 'payment_acceptance',
+            payment_policy: {
+              amount: 150,
+              primary_qr_url: 'https://res.cloudinary.com/aces/image/upload/v1/qr_only.png',
+            },
+          },
+        ],
+      };
+
+      const res = await request('/api/v1/forms', {
+        method: 'POST',
+        token: eventTeamToken,
+        body: payload,
+      });
+
+      assert.equal(res.status, 201);
+      const getRes = await request(`/api/v1/forms/${res.body.data.form_id}`);
+      const q = getRes.body.data.questions[0];
+      assert.match(q.question_statement, /Please pay ₹150 using the QR code below/);
+    });
+
+    it('should validate response submission for payment_acceptance and record screenshot', async () => {
+      const formRes = await request('/api/v1/forms', {
+        method: 'POST',
+        token: eventTeamToken,
+        body: {
+          title: 'Seminar with Payment',
+          questions: [
+            {
+              question_serial: 1,
+              question_type: 'payment_acceptance',
+              payment_policy: {
+                amount: 100,
+                primary_qr_url: 'https://res.cloudinary.com/aces/image/upload/v1/qr.png',
+              },
+            },
+          ],
+        },
+      });
+      const formId = formRes.body.data.form_id;
+
+      // 1. Submit without screenshot -> should fail because required
+      const emptySubmitRes = await request(`/api/v1/forms/${formId}/responses`, {
+        method: 'POST',
+        body: {
+          email: 'payer@example.com',
+          answers: { '1': [] },
+        },
+      });
+      assert.equal(emptySubmitRes.status, 400);
+
+      // 2. Submit with invalid URL -> should fail
+      const invalidUrlRes = await request(`/api/v1/forms/${formId}/responses`, {
+        method: 'POST',
+        body: {
+          email: 'payer@example.com',
+          answers: { '1': ['not-a-valid-url'] },
+        },
+      });
+      assert.equal(invalidUrlRes.status, 400);
+      assert.match(invalidUrlRes.body.error.message, /valid payment screenshot URL/);
+
+      // 3. Submit with valid screenshot URL -> should succeed
+      const validScreenshotUrl = 'https://res.cloudinary.com/aces/image/upload/v1/screenshot.png';
+      const submitRes = await request(`/api/v1/forms/${formId}/responses`, {
+        method: 'POST',
+        body: {
+          email: 'payer@example.com',
+          answers: { '1': [validScreenshotUrl] },
+        },
+      });
+      assert.equal(submitRes.status, 201);
+      assert.equal(submitRes.body.success, true);
+
+      // 4. Check responses contain screenshot
+      const getRespRes = await request(`/api/v1/forms/${formId}/responses`, {
+        token: eventTeamToken,
+      });
+      assert.equal(getRespRes.status, 200);
+      assert.equal(getRespRes.body.data.responses.length, 1);
+      assert.deepEqual(getRespRes.body.data.responses[0].answers['1'], [validScreenshotUrl]);
+    });
+  });
 });

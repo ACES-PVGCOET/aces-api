@@ -121,6 +121,11 @@ The **Forms Module** (`forms/`) provides dynamic form management, schema validat
   "file_policy": {
     "supported_types": ["pdf", "zip"],
     "max_size_mb": 5
+  },
+  "payment_policy": {
+    "amount": 250,
+    "primary_qr_url": "https://res.cloudinary.com/aces/image/upload/v1/qr_primary.png",
+    "fallback_qr_url": "https://res.cloudinary.com/aces/image/upload/v1/qr_fallback.png"
   }
 }
 ```
@@ -131,14 +136,17 @@ The **Forms Module** (`forms/`) provides dynamic form management, schema validat
 | `question_id` | String (ObjectId) | Yes | | Unique identifier for question. |
 | `form_id` | String (ObjectId) | Yes | | Parent form ID (indexed). |
 | `question_serial` | Number | Yes | Positive integer | Order serial within form (compound unique index with `form_id`). |
-| `question_statement` | String | Yes | | Prompt text for question. |
-| `question_type` | String | Yes | `['textual', 'multiple_choice', 'file']` | Type of question response input. |
-| `is_required` | Boolean | No | Default: `true` | Enforces mandatory submission. |
+| `question_statement` | String | Yes | | Prompt text for question (auto-generated for `payment_acceptance`). |
+| `question_type` | String | Yes | `['textual', 'multiple_choice', 'file', 'payment_acceptance']` | Type of question response input. |
+| `is_required` | Boolean | No | Default: `true` | Enforces mandatory submission (defaults `true` for `payment_acceptance`). |
 | `textual_policy.max_len` | Number | No | Default: `500` | Character limit for textual answers. |
 | `multiple_choice_policy.type` | String | No | `['Single', 'Multiple']` | Choice selection constraint. |
 | `multiple_choice_policy.options` | Array[String] | No | | Allowed choices list. |
 | `file_policy.supported_types` | Array[String] | No | e.g. `["pdf", "png"]` | Permitted file extensions. |
 | `file_policy.max_size_mb` | Number | No | Default: `5` | Max file upload limit in MB. |
+| `payment_policy.amount` | Number | Conditional | Positive number (`> 0`) | Payment fee amount (Required for `payment_acceptance`). |
+| `payment_policy.primary_qr_url` | String | Conditional | Image URL | Primary UPI / Payment QR code (Required for `payment_acceptance`). |
+| `payment_policy.fallback_qr_url` | String | No | Image URL | Optional secondary/fallback QR code. |
 
 ---
 
