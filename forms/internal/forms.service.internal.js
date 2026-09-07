@@ -25,19 +25,51 @@ export class FormsInternalService {
       }
       serialSet.add(serial);
 
-      if (!q.question_statement || typeof q.question_statement !== 'string' || !q.question_statement.trim()) {
-        throw new ValidationError(`Question statement is required for serial ${serial}.`);
+      const rawType = q.question_type ? String(q.question_type).trim().toLowerCase() : '';
+      if (!['textual', 'multiple_choice', 'file', 'payment_acceptance'].includes(rawType)) {
+        throw new ValidationError(`Invalid question_type '${q.question_type}' for serial ${serial}.`);
       }
 
-      if (!['textual', 'multiple_choice', 'file'].includes(q.question_type)) {
-        throw new ValidationError(`Invalid question_type '${q.question_type}' for serial ${serial}.`);
+      let statement = q.question_statement && typeof q.question_statement === 'string' ? q.question_statement.trim() : '';
+      let paymentPolicy = null;
+
+      if (rawType === 'payment_acceptance') {
+        const policy = q.payment_policy || {};
+        const amount = Number(policy.amount);
+        if (policy.amount === undefined || policy.amount === null || isNaN(amount) || amount <= 0) {
+          throw new ValidationError(`Valid payment amount (> 0) is required for payment acceptance question serial ${serial}.`);
+        }
+
+        const primaryQr = policy.primary_qr_url ? String(policy.primary_qr_url).trim() : '';
+        if (!primaryQr) {
+          throw new ValidationError(`Primary QR code image is required for payment acceptance question serial ${serial}.`);
+        }
+
+        const fallbackQr = policy.fallback_qr_url ? String(policy.fallback_qr_url).trim() : '';
+
+        // Generate formal statement automatically if not provided or empty
+        if (!statement) {
+          statement = fallbackQr
+            ? `Please pay ₹${amount} using one of the following QR codes and upload your payment confirmation screenshot.`
+            : `Please pay ₹${amount} using the QR code below and upload your payment confirmation screenshot.`;
+        }
+
+        paymentPolicy = {
+          amount,
+          primary_qr_url: primaryQr,
+          fallback_qr_url: fallbackQr,
+        };
+      } else {
+        if (!statement) {
+          throw new ValidationError(`Question statement is required for serial ${serial}.`);
+        }
       }
 
       questionDocs.push({
         form_id: formId,
         question_serial: serial,
-        question_statement: q.question_statement.trim(),
-        question_type: q.question_type,
+        question_statement: statement,
+        question_type: rawType,
         is_required: q.is_required !== undefined ? Boolean(q.is_required) : true,
         image_url: q.image_url ? String(q.image_url).trim() : '',
         textual_policy: {
@@ -50,6 +82,11 @@ export class FormsInternalService {
         file_policy: {
           supported_types: (q.file_policy && q.file_policy.supported_types) || [],
           max_size_mb: (q.file_policy && q.file_policy.max_size_mb) || 5,
+        },
+        payment_policy: paymentPolicy || {
+          amount: 0,
+          primary_qr_url: '',
+          fallback_qr_url: '',
         },
       });
     }
@@ -127,6 +164,7 @@ export class FormsInternalService {
       textual_policy: q.textual_policy,
       multiple_choice_policy: q.multiple_choice_policy,
       file_policy: q.file_policy,
+      payment_policy: q.payment_policy,
     }));
 
     return {
@@ -357,6 +395,21 @@ export class FormsInternalService {
                   `Question serial ${question.question_serial} requires supported file type(s): [${supportedTypes.join(', ')}].`
                 );
               }
+            }
+          }
+        } else if (question.question_type === 'payment_acceptance') {
+          for (const fileUrl of answerArray) {
+            if (!fileUrl || typeof fileUrl !== 'string' || !fileUrl.trim()) {
+              throw new ValidationError(
+                `Payment confirmation screenshot is required for question serial ${question.question_serial}.`
+              );
+            }
+            const trimmed = fileUrl.trim();
+            const isUrl = /^https?:\/\/.+/i.test(trimmed);
+            if (!isUrl) {
+              throw new ValidationError(
+                `Question serial ${question.question_serial} requires a valid payment screenshot URL.`
+              );
             }
           }
         }

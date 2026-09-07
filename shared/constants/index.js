@@ -17,6 +17,7 @@ export const QUESTION_TYPES = {
   TEXTUAL: 'textual',
   MULTIPLE_CHOICE: 'multiple_choice',
   FILE: 'file',
+  PAYMENT_ACCEPTANCE: 'payment_acceptance',
 };
 
 export const MC_SELECTION_TYPES = {
