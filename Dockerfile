@@ -1,12 +1,17 @@
-FROM node:20-alpine AS dependencies
+FROM node:20-bookworm-slim AS dependencies
 
 WORKDIR /usr/src/app
 
 COPY package.json package-lock.json ./
 
-RUN npm ci --omit=dev && npm cache clean --force
+RUN npm ci --omit=dev
 
-FROM node:20-alpine AS runner
+RUN npx puppeteer browsers install chrome
+
+RUN npm cache clean --force
+
+
+FROM node:20-bookworm-slim AS runner
 
 WORKDIR /usr/src/app
 
