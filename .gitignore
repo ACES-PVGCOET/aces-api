@@ -22,3 +22,5 @@ yarn-error.log*
 # Testing & Coverage
 coverage/
 .nyc_output/
+
+.cache/
