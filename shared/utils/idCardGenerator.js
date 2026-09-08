@@ -122,9 +122,17 @@ export async function generateIdCardPng({
       deviceScaleFactor: 2,
     });
 
-    await page.setContent(html, { waitUntil: 'networkidle0' });
+    await page.setContent(html, {
+      waitUntil: 'domcontentloaded',
+      timeout: 30000,
+    });
+
+    await page.waitForSelector('.id-card', {
+      timeout: 10000,
+    });
 
     const cardElement = await page.$('.id-card');
+
     if (!cardElement) {
       throw new Error('Failed to find .id-card container in rendered HTML.');
     }
