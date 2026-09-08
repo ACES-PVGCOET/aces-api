@@ -1,4 +1,4 @@
-FROM node:20-bookworm-slim AS dependencies
+FROM node:22-bookworm-slim AS dependencies
 
 WORKDIR /usr/src/app
 
@@ -11,7 +11,7 @@ RUN npx puppeteer browsers install chrome
 RUN npm cache clean --force
 
 
-FROM node:20-bookworm-slim AS runner
+FROM node:22-bookworm-slim AS runner
 
 WORKDIR /usr/src/app
 
