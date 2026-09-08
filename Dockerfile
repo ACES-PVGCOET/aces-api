@@ -6,6 +6,7 @@ COPY package.json package-lock.json ./
 
 RUN npm ci --omit=dev
 
+# Install Chrome required by Puppeteer
 RUN npx puppeteer browsers install chrome
 
 RUN npm cache clean --force
@@ -19,6 +20,9 @@ ENV NODE_ENV=production
 ENV PORT=5000
 
 COPY --chown=node:node --from=dependencies /usr/src/app/node_modules ./node_modules
+
+# IMPORTANT: Copy Puppeteer's Chrome cache
+COPY --chown=node:node --from=dependencies /root/.cache/puppeteer /home/node/.cache/puppeteer
 
 COPY --chown=node:node . .
 
