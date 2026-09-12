@@ -12,16 +12,31 @@ const DEFAULT_ALLOWED_MIME_TYPES = [
 
 /**
  * Custom file filter factory for Multer
- * @param {Array<string>} allowedMimeTypes
+ * @param {Array<string>|string|null} allowedMimeTypes
  */
 const createFileFilter = (allowedMimeTypes = DEFAULT_ALLOWED_MIME_TYPES) => {
   return (_req, file, cb) => {
-    if (!allowedMimeTypes || allowedMimeTypes.includes('*') || allowedMimeTypes.includes(file.mimetype)) {
+    // If null/undefined or contains '*', accept all file types
+    if (!allowedMimeTypes || allowedMimeTypes === '*' || (Array.isArray(allowedMimeTypes) && allowedMimeTypes.includes('*'))) {
+      return cb(null, true);
+    }
+
+    const typesArray = Array.isArray(allowedMimeTypes) ? allowedMimeTypes : [allowedMimeTypes];
+    const isAllowed = typesArray.some((type) => {
+      if (type === file.mimetype) return true;
+      if (typeof type === 'string' && type.endsWith('/*')) {
+        const prefix = type.slice(0, -1);
+        return file.mimetype.startsWith(prefix);
+      }
+      return false;
+    });
+
+    if (isAllowed) {
       cb(null, true);
     } else {
       cb(
         new ValidationError(
-          `Invalid file type '${file.mimetype}'. Allowed types: ${allowedMimeTypes.join(', ')}`
+          `Invalid file type '${file.mimetype}'. Allowed types: ${typesArray.join(', ')}`
         ),
         false
       );
@@ -33,16 +48,19 @@ const createFileFilter = (allowedMimeTypes = DEFAULT_ALLOWED_MIME_TYPES) => {
  * Configure standard Multer instance with memory storage
  * @param {object} [options]
  * @param {number} [options.maxSizeMB]
- * @param {Array<string>} [options.allowedMimeTypes]
+ * @param {Array<string>|string|null} [options.allowedMimeTypes]
  */
 export const createMulterInstance = (options = {}) => {
-  const maxSizeMB = options.maxSizeMB || DEFAULT_MAX_SIZE_MB;
-  const allowedMimeTypes = options.allowedMimeTypes || DEFAULT_ALLOWED_MIME_TYPES;
+  const maxSizeMB = options.maxSizeMB !== undefined ? options.maxSizeMB : DEFAULT_MAX_SIZE_MB;
+  const allowedMimeTypes =
+    options.allowedMimeTypes !== undefined
+      ? options.allowedMimeTypes
+      : DEFAULT_ALLOWED_MIME_TYPES;
 
   return multer({
     storage: multer.memoryStorage(),
     limits: {
-      fileSize: maxSizeMB * 1024 * 1024,
+      fileSize: Math.round(maxSizeMB * 1024 * 1024),
     },
     fileFilter: createFileFilter(allowedMimeTypes),
   });
@@ -51,15 +69,16 @@ export const createMulterInstance = (options = {}) => {
 /**
  * Helper to handle Multer errors cleanly in Express middleware
  * @param {Function} multerMiddleware
+ * @param {number} [maxSizeMB]
  * @returns {Function} Express middleware function
  */
-const handleMulterError = (multerMiddleware) => {
+const handleMulterError = (multerMiddleware, maxSizeMB = DEFAULT_MAX_SIZE_MB) => {
   return (req, res, next) => {
     multerMiddleware(req, res, (err) => {
       if (err) {
         if (err instanceof multer.MulterError) {
           if (err.code === 'LIMIT_FILE_SIZE') {
-            return next(new ValidationError(`File size exceeds maximum limit of ${DEFAULT_MAX_SIZE_MB}MB.`));
+            return next(new ValidationError(`File size exceeds maximum limit of ${maxSizeMB}MB.`));
           }
           if (err.code === 'LIMIT_UNEXPECTED_FILE') {
             return next(new ValidationError(`Unexpected file field '${err.field}'.`));
@@ -80,7 +99,8 @@ const handleMulterError = (multerMiddleware) => {
  */
 export const uploadSingle = (fieldName = 'profile_photo', options = {}) => {
   const upload = createMulterInstance(options);
-  return handleMulterError(upload.single(fieldName));
+  const maxSizeMB = options.maxSizeMB || DEFAULT_MAX_SIZE_MB;
+  return handleMulterError(upload.single(fieldName), maxSizeMB);
 };
 
 /**
@@ -91,7 +111,8 @@ export const uploadSingle = (fieldName = 'profile_photo', options = {}) => {
  */
 export const uploadArray = (fieldName = 'photos', maxCount = 5, options = {}) => {
   const upload = createMulterInstance(options);
-  return handleMulterError(upload.array(fieldName, maxCount));
+  const maxSizeMB = options.maxSizeMB || DEFAULT_MAX_SIZE_MB;
+  return handleMulterError(upload.array(fieldName, maxCount), maxSizeMB);
 };
 
 /**
@@ -101,7 +122,8 @@ export const uploadArray = (fieldName = 'photos', maxCount = 5, options = {}) =>
  */
 export const uploadFields = (fields, options = {}) => {
   const upload = createMulterInstance(options);
-  return handleMulterError(upload.fields(fields));
+  const maxSizeMB = options.maxSizeMB || DEFAULT_MAX_SIZE_MB;
+  return handleMulterError(upload.fields(fields), maxSizeMB);
 };
 
 export default {
