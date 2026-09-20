@@ -157,3 +157,43 @@ export const sendOnboardingEmail = async ({ email, token, name }) => {
     };
   }
 };
+
+/**
+ * Utility to send password reset emails using Resend.
+ */
+export const sendPasswordResetEmail = async ({ email, token, name }) => {
+  const resetLink = `${config.clientOrigin}/reset-password?token=${token}`;
+
+  const html = `
+    <h2>Password Reset Request - ACES</h2>
+    <p>Hello${name ? ` ${name}` : ''},</p>
+    <p>We received a request to reset your ACES account password. Please click the link below to set a new password:</p>
+    <p><a href="${resetLink}">${resetLink}</a></p>
+    <p>This password reset link will expire in 1 hour.</p>
+    <p>If you did not request a password reset, please ignore this email or contact support if you have concerns.</p>
+  `;
+
+  console.info(`[Mailer] Password reset email dispatch initiated for ${email}`);
+  console.info(`[Mailer] Password Reset Link: ${resetLink}`);
+
+  try {
+    const result = await sendMail({
+      to: email,
+      subject: 'Reset Your ACES Account Password',
+      html,
+    });
+
+    return {
+      ...result,
+      resetLink,
+    };
+  } catch (error) {
+    console.error(`[Mailer] Failed to send password reset email to ${email}:`, error.message);
+    return {
+      success: false,
+      error: error.message,
+      resetLink,
+    };
+  }
+};
+

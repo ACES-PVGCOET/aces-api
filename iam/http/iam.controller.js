@@ -33,6 +33,26 @@ export const completeOnboarding = asyncHandler(async (req, res) => {
   return sendSuccess(res, result);
 });
 
+export const forgotPassword = asyncHandler(async (req, res) => {
+  const { email } = req.body;
+  if (!email) {
+    throw new ValidationError('Email is required.');
+  }
+
+  const result = await IAMInternalService.requestPasswordReset(email);
+  return sendSuccess(res, result);
+});
+
+export const resetPassword = asyncHandler(async (req, res) => {
+  const { token, password } = req.body;
+  if (!token || !password) {
+    throw new ValidationError('Reset token and new password are required.');
+  }
+
+  const result = await IAMInternalService.resetPassword({ token, password });
+  return sendSuccess(res, result);
+});
+
 export const loginMember = asyncHandler(async (req, res) => {
   const { email, password } = req.body;
   if (!email || !password) {
