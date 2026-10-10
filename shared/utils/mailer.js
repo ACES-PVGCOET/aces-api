@@ -158,42 +158,30 @@ export const sendOnboardingEmail = async ({ email, token, name }) => {
   }
 };
 
-/**
- * Utility to send password reset emails using Resend.
- */
-export const sendPasswordResetEmail = async ({ email, token, name }) => {
-  const resetLink = `${config.clientOrigin}/reset-password?token=${token}`;
-
+/** Send a short-lived password reset OTP using Resend. */
+export const sendPasswordResetOtp = async ({ email, otp, name }) => {
   const html = `
-    <h2>Password Reset Request - ACES</h2>
+    <h2>Password Reset Code - ACES</h2>
     <p>Hello${name ? ` ${name}` : ''},</p>
-    <p>We received a request to reset your ACES account password. Please click the link below to set a new password:</p>
-    <p><a href="${resetLink}">${resetLink}</a></p>
-    <p>This password reset link will expire in 1 hour.</p>
+    <p>Use this code to reset your ACES account password:</p>
+    <p style="font-size:28px;font-weight:bold;letter-spacing:8px">${otp}</p>
+    <p>This code expires in 10 minutes and can be used once.</p>
     <p>If you did not request a password reset, please ignore this email or contact support if you have concerns.</p>
   `;
 
-  console.info(`[Mailer] Password reset email dispatch initiated for ${email}`);
-  console.info(`[Mailer] Password Reset Link: ${resetLink}`);
+  console.info(`[Mailer] Password reset OTP dispatch initiated for ${email}`);
 
   try {
     const result = await sendMail({
       to: email,
-      subject: 'Reset Your ACES Account Password',
+      subject: 'Your ACES Password Reset Code',
       html,
     });
 
-    return {
-      ...result,
-      resetLink,
-    };
+    return result;
   } catch (error) {
-    console.error(`[Mailer] Failed to send password reset email to ${email}:`, error.message);
-    return {
-      success: false,
-      error: error.message,
-      resetLink,
-    };
+    console.error(`[Mailer] Failed to send password reset OTP to ${email}:`, error.message);
+    return { success: false, error: error.message };
   }
 };
 

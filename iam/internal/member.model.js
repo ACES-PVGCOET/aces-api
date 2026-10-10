@@ -50,12 +50,17 @@ const memberSchema = new mongoose.Schema(
       type: Date,
       select: false,
     },
-    reset_password_token: {
+    reset_password_otp_hash: {
       type: String,
       select: false,
     },
-    reset_password_expires_at: {
+    reset_password_otp_expires_at: {
       type: Date,
+      select: false,
+    },
+    reset_password_otp_attempts: {
+      type: Number,
+      default: 0,
       select: false,
     },
     social_links: {
@@ -74,8 +79,9 @@ const memberSchema = new mongoose.Schema(
         delete ret.password;
         delete ret.onboarding_token;
         delete ret.onboarding_token_expires_at;
-        delete ret.reset_password_token;
-        delete ret.reset_password_expires_at;
+        delete ret.reset_password_otp_hash;
+        delete ret.reset_password_otp_expires_at;
+        delete ret.reset_password_otp_attempts;
         return ret;
       },
     },

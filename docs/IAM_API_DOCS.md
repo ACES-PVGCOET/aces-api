@@ -325,7 +325,7 @@ Content-Type: application/json
 ---
 
 ### 5.4 Request Password Reset (Forgot Password)
-Initiates a password reset request for a member by generating a secure single-use token valid for 1 hour and dispatching a password reset link via email.
+Initiates a password reset request by emailing a 4-digit, single-use OTP valid for 10 minutes. Unknown emails receive the same response to avoid disclosing account existence.
 
 * **Method:** `POST`
 * **Path:** `/api/v1/iam/forgot-password`
@@ -353,7 +353,7 @@ Content-Type: application/json
 {
   "success": true,
   "data": {
-    "message": "If an account exists with this email, a password reset link has been sent."
+    "message": "If an account exists with this email, a password reset code has been sent."
   },
   "error": null
 }
@@ -362,7 +362,7 @@ Content-Type: application/json
 ---
 
 ### 5.5 Complete Password Reset
-Resets the member's account password using a valid, non-expired password reset token received via email.
+Resets the member's account password using the email address and valid, non-expired 4-digit OTP received by email. The OTP allows at most five attempts.
 
 * **Method:** `POST`
 * **Path:** `/api/v1/iam/reset-password`
@@ -372,7 +372,8 @@ Resets the member's account password using a valid, non-expired password reset t
 #### Request Parameters
 | Parameter | Type | Required | Description |
 | :--- | :--- | :--- | :--- |
-| `token` | String | Yes | Single-use hex password reset token from email link. |
+| `email` | String | Yes | Account email address that received the OTP. |
+| `otp` | String | Yes | 4-digit single-use code from the email. |
 | `password` | String | Yes | New password for the account (minimum 6 characters). |
 
 #### Request Example
@@ -382,7 +383,8 @@ Host: localhost:5000
 Content-Type: application/json
 
 {
-  "token": "a1b2c3d4e5f678901234567890abcdefa1b2c3d4e5f678901234567890abcdef",
+  "email": "sarah.connor@college.edu",
+  "otp": "0427",
   "password": "MyBrandNewPassword123!"
 }
 ```

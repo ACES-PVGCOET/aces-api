@@ -44,12 +44,12 @@ export const forgotPassword = asyncHandler(async (req, res) => {
 });
 
 export const resetPassword = asyncHandler(async (req, res) => {
-  const { token, password } = req.body;
-  if (!token || !password) {
-    throw new ValidationError('Reset token and new password are required.');
+  const { email, otp, password } = req.body;
+  if (!email || !otp || !password) {
+    throw new ValidationError('Email, reset code, and new password are required.');
   }
 
-  const result = await IAMInternalService.resetPassword({ token, password });
+  const result = await IAMInternalService.resetPassword({ email, otp, password });
   return sendSuccess(res, result);
 });
 

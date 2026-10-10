@@ -4,7 +4,7 @@ import bcrypt from 'bcryptjs';
 import { MemberModel } from './member.model.js';
 import { config } from '../../shared/config/index.js';
 import { MEMBER_STATUS, ROLES } from '../../shared/constants/index.js';
-import { sendOnboardingEmail, sendPasswordResetEmail } from '../../shared/utils/mailer.js';
+import { sendOnboardingEmail, sendPasswordResetOtp } from '../../shared/utils/mailer.js';
 import { uploadProfilePhoto, replaceUploadedFile } from '../../shared/utils/fileUpload.js';
 import { NotFoundError, UnauthorizedError, ConflictError, ValidationError, ForbiddenError } from '../../shared/errors/index.js';
 import {
@@ -130,54 +130,83 @@ export class IAMInternalService {
       throw new ValidationError('Email is required.');
     }
 
-    const member = await MemberModel.findOne({ email: email.toLowerCase().trim() });
+    const normalizedEmail = email.toLowerCase().trim();
+    const member = await MemberModel.findOne({ email: normalizedEmail });
     
     if (!member) {
-      return { message: 'If an account exists with this email, a password reset link has been sent.' };
+      return { message: 'If an account exists with this email, a password reset code has been sent.' };
     }
 
-    const resetToken = crypto.randomBytes(32).toString('hex');
-    const resetTokenExpiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+    const otp = crypto.randomInt(0, 10000).toString().padStart(4, '0');
+    const otpHash = crypto.createHmac('sha256', config.jwt.secret)
+      .update(`${normalizedEmail}:${otp}`)
+      .digest('hex');
 
-    member.reset_password_token = resetToken;
-    member.reset_password_expires_at = resetTokenExpiresAt;
+    member.reset_password_otp_hash = otpHash;
+    member.reset_password_otp_expires_at = new Date(Date.now() + 10 * 60 * 1000);
+    member.reset_password_otp_attempts = 0;
     await member.save();
 
     try {
-      await sendPasswordResetEmail({
+      await sendPasswordResetOtp({
         email: member.email,
-        token: resetToken,
+        otp,
         name: member.name,
       });
     } catch (emailErr) {
       console.error(`[IAM] Failed to dispatch password reset email to ${member.email}:`, emailErr.message);
     }
 
-    return { message: 'If an account exists with this email, a password reset link has been sent.' };
+    return { message: 'If an account exists with this email, a password reset code has been sent.' };
   }
 
-  static async resetPassword({ token, password }) {
-    if (!token || !password) {
-      throw new ValidationError('Reset token and new password are required.');
+  static async resetPassword({ email, otp, password }) {
+    if (!email || !otp || !password) {
+      throw new ValidationError('Email, reset code, and new password are required.');
+    }
+
+    if (typeof otp !== 'string' || !/^\d{4}$/.test(otp)) {
+      throw new ValidationError('Reset code must be 4 digits.');
     }
 
     if (typeof password !== 'string' || password.length < 6) {
       throw new ValidationError('Password must be at least 6 characters long.');
     }
 
-    const member = await MemberModel.findOne({
-      reset_password_token: token,
-      reset_password_expires_at: { $gt: new Date() },
-    }).select('+reset_password_token +reset_password_expires_at +password');
+    const normalizedEmail = email.toLowerCase().trim();
+    const member = await MemberModel.findOne({ email: normalizedEmail })
+      .select('+reset_password_otp_hash +reset_password_otp_expires_at +reset_password_otp_attempts +password');
 
-    if (!member) {
-      throw new ValidationError('Invalid or expired password reset token.');
+    if (!member || !member.reset_password_otp_hash || !member.reset_password_otp_expires_at || member.reset_password_otp_expires_at <= new Date()) {
+      throw new ValidationError('Invalid or expired reset code. Request a new code and try again.');
+    }
+
+    if (!/^[a-f0-9]{64}$/i.test(member.reset_password_otp_hash)) {
+      throw new ValidationError('Invalid or expired reset code. Request a new code and try again.');
+    }
+
+    if ((member.reset_password_otp_attempts || 0) >= 5) {
+      throw new ValidationError('Too many incorrect attempts. Request a new reset code.');
+    }
+
+    member.reset_password_otp_attempts = (member.reset_password_otp_attempts || 0) + 1;
+    const submittedHash = crypto.createHmac('sha256', config.jwt.secret)
+      .update(`${normalizedEmail}:${otp}`)
+      .digest('hex');
+    const hashMatches = crypto.timingSafeEqual(
+      Buffer.from(member.reset_password_otp_hash, 'hex'),
+      Buffer.from(submittedHash, 'hex')
+    );
+    if (!hashMatches) {
+      await member.save();
+      throw new ValidationError('Invalid or expired reset code.');
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
     member.password = hashedPassword;
-    member.reset_password_token = undefined;
-    member.reset_password_expires_at = undefined;
+    member.reset_password_otp_hash = undefined;
+    member.reset_password_otp_expires_at = undefined;
+    member.reset_password_otp_attempts = 0;
 
     await member.save();
     return { message: 'Password has been reset successfully.' };

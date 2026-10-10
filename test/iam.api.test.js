@@ -665,11 +665,14 @@ Eve Adams, eve.adams@aces.org, Marketing Team, Member`;
       assert.equal(res.body.success, true);
       assert.equal(
         res.body.data.message,
-        'If an account exists with this email, a password reset link has been sent.'
+        'If an account exists with this email, a password reset code has been sent.'
       );
     });
 
-    it('should generate reset token and allow password reset and login for registered member', async () => {
+    it('should generate reset OTP and allow password reset and login for registered member', async () => {
+      const crypto = await import('crypto');
+      const { config } = await import('../shared/config/index.js');
+
       // 1. Register a member
       const regRes = await request('/api/v1/iam/register', {
         method: 'POST',
@@ -700,30 +703,50 @@ Eve Adams, eve.adams@aces.org, Marketing Team, Member`;
         body: { email: 'reset.test@example.com' },
       });
       assert.equal(forgotRes.status, 200);
-
-      // Verify token in database
-      const memberInDb = await MemberModel.findOne({ email: 'reset.test@example.com' }).select(
-        '+reset_password_token +reset_password_expires_at'
+      assert.equal(
+        forgotRes.body.data.message,
+        'If an account exists with this email, a password reset code has been sent.'
       );
-      assert.ok(memberInDb.reset_password_token);
-      assert.ok(memberInDb.reset_password_expires_at > new Date());
-      const resetToken = memberInDb.reset_password_token;
 
-      // 4. Reset password with invalid token should fail
+      // Verify OTP hash in database
+      const memberInDb = await MemberModel.findOne({ email: 'reset.test@example.com' }).select(
+        '+reset_password_otp_hash +reset_password_otp_expires_at'
+      );
+      assert.ok(memberInDb.reset_password_otp_hash);
+      assert.ok(memberInDb.reset_password_otp_expires_at > new Date());
+
+      // Find the generated OTP by matching HMAC hash
+      let validOtp = null;
+      for (let i = 0; i < 10000; i++) {
+        const candidate = i.toString().padStart(4, '0');
+        const hash = crypto
+          .createHmac('sha256', config.jwt.secret)
+          .update(`reset.test@example.com:${candidate}`)
+          .digest('hex');
+        if (hash === memberInDb.reset_password_otp_hash) {
+          validOtp = candidate;
+          break;
+        }
+      }
+      assert.ok(validOtp, 'Generated OTP should be resolved from hash');
+
+      // 4. Reset password with invalid OTP should fail
       const invalidResetRes = await request('/api/v1/iam/reset-password', {
         method: 'POST',
         body: {
-          token: 'invalid-token-123456',
+          email: 'reset.test@example.com',
+          otp: '9999' === validOtp ? '1111' : '9999',
           password: 'NewPassword123!',
         },
       });
       assert.equal(invalidResetRes.status, 400);
 
-      // 5. Reset password with valid token
+      // 5. Reset password with valid OTP
       const resetRes = await request('/api/v1/iam/reset-password', {
         method: 'POST',
         body: {
-          token: resetToken,
+          email: 'reset.test@example.com',
+          otp: validOtp,
           password: 'BrandNewPassword123!',
         },
       });

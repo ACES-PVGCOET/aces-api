@@ -59,7 +59,7 @@ The application is structured as a **Modular Monolith**:
 ###  1. Identity & Access Management (IAM)
 - User authentication via JWT tokens and bcrypt password hashing.
 - Role-based Access Control (RBAC) supporting custom administrative authorities.
-- Password reset workflow with email verification tokens via Resend.
+- Password reset workflow with 4-digit email OTPs via Resend.
 - **Google Sheet CSV Bulk Member Registration**: Admins can import members directly from published Google Sheet URLs.
 
 ###  2. Events Management
@@ -219,8 +219,8 @@ All API endpoints are hosted under the base prefix `/api/v1`.
 - `POST /api/v1/iam/login` - User login
 - `POST /api/v1/iam/register` - New user registration
 - `POST /api/v1/iam/bulk-register` - Admin bulk registration from Google Sheet CSV URL
-- `POST /api/v1/iam/forgot-password` - Request password reset link
-- `POST /api/v1/iam/reset-password` - Reset password via token
+- `POST /api/v1/iam/forgot-password` - Request a password reset OTP
+- `POST /api/v1/iam/reset-password` - Reset password with email and OTP
 - `GET /api/v1/iam/profile` - Fetch current user profile
 - `PATCH /api/v1/iam/profile` - Update user profile
 - `GET /api/v1/iam/members` - Retrieve member directory (Admin)
