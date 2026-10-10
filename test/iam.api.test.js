@@ -643,6 +643,34 @@ Eve Adams, eve.adams@aces.org, Marketing Team, Member`;
       assert.equal(facultyMembers[0].position, 'Head Of Department');
       assert.equal(facultyMembers[1].position, 'Faculty Coordinator');
     });
+
+    it('should paginate members correctly with page and limit query params', async () => {
+      for (let i = 1; i <= 3; i++) {
+        await request('/api/v1/iam/register', {
+          method: 'POST',
+          token: adminToken,
+          body: {
+            name: `Web Member ${i}`,
+            email: `web.page.member${i}@aces.org`,
+            team: 'Web Team',
+            position: 'Member',
+          },
+        });
+      }
+
+      const page1 = await request('/api/v1/iam/members?team=Web Team&page=1&limit=2');
+      assert.equal(page1.status, 200);
+      assert.equal(page1.body.data.members.length, 2);
+      assert.equal(page1.body.data.total, 3);
+      assert.equal(page1.body.data.page, 1);
+      assert.equal(page1.body.data.limit, 2);
+      assert.equal(page1.body.data.total_pages, 2);
+
+      const page2 = await request('/api/v1/iam/members?team=Web Team&page=2&limit=2');
+      assert.equal(page2.status, 200);
+      assert.equal(page2.body.data.members.length, 1);
+      assert.equal(page2.body.data.page, 2);
+    });
   });
 
   describe('Forgot Password and Reset Password Feature Tests', () => {

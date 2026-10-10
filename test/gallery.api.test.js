@@ -357,4 +357,34 @@ describe('Gallery Module API Tests', () => {
       assert.equal(getRes.status, 404);
     });
   });
+
+  describe('GET /api/v1/gallery/items (List & Paginate Items)', () => {
+    it('should paginate gallery items correctly with page and limit params', async () => {
+      for (let i = 1; i <= 3; i++) {
+        await request('/api/v1/gallery/items', {
+          method: 'POST',
+          token: mediaTeamToken,
+          body: {
+            title: `Item ${i}`,
+            media_url: `https://example.com/item${i}.jpg`,
+            media_type: 'image',
+            collection_name: 'Annual Day 2026',
+          },
+        });
+      }
+
+      const page1 = await request('/api/v1/gallery/items?page=1&limit=2');
+      assert.equal(page1.status, 200);
+      assert.equal(page1.body.data.items.length, 2);
+      assert.equal(page1.body.data.total, 3);
+      assert.equal(page1.body.data.page, 1);
+      assert.equal(page1.body.data.limit, 2);
+      assert.equal(page1.body.data.total_pages, 2);
+
+      const page2 = await request('/api/v1/gallery/items?page=2&limit=2');
+      assert.equal(page2.status, 200);
+      assert.equal(page2.body.data.items.length, 1);
+      assert.equal(page2.body.data.page, 2);
+    });
+  });
 });

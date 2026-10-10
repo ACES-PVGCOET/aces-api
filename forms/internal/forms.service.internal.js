@@ -471,7 +471,7 @@ export class FormsInternalService {
   /**
    * Fetch all responses for a form
    */
-  static async getFormResponses(form_id) {
+  static async getFormResponses(form_id, { page, limit } = {}) {
     if (!mongoose.Types.ObjectId.isValid(form_id)) {
       throw new ValidationError('Invalid form ID format.');
     }
@@ -481,9 +481,20 @@ export class FormsInternalService {
       throw new NotFoundError('Form not found.');
     }
 
-    const responses = await FormResponse.find({ form_id })
-      .sort({ submitted_at: -1 })
-      .lean();
+    const total = await FormResponse.countDocuments({ form_id });
+    const hasPagination = page !== undefined || limit !== undefined;
+    const pageNum = Math.max(1, parseInt(page, 10) || 1);
+    const limitNum = hasPagination
+      ? Math.max(1, Math.min(100, parseInt(limit, 10) || 10))
+      : 0;
+
+    let dbQuery = FormResponse.find({ form_id }).sort({ submitted_at: -1 });
+    if (limitNum > 0) {
+      const skip = (pageNum - 1) * limitNum;
+      dbQuery = dbQuery.skip(skip).limit(limitNum);
+    }
+
+    const responses = await dbQuery.lean();
 
     // Fetch member details for non-null member_ids
     const memberIds = [...new Set(responses.map((r) => r.member_id).filter(Boolean))];
@@ -521,10 +532,16 @@ export class FormsInternalService {
       };
     });
 
+    const effectiveLimit = limitNum > 0 ? limitNum : (total || 1);
+
     return {
       form_id: form._id,
       title: form.title,
-      total_responses: formattedResponses.length,
+      total_responses: total,
+      total,
+      page: pageNum,
+      limit: limitNum > 0 ? limitNum : total,
+      total_pages: Math.ceil(total / effectiveLimit) || 1,
       responses: formattedResponses,
     };
   }

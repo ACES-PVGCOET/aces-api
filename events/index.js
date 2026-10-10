@@ -3,7 +3,7 @@ import { EventInternalService } from './internal/event.service.internal.js';
 export const EventsService = {
   createEvent: (params) => EventInternalService.createEvent(params),
 
-  listEvents: () => EventInternalService.listEvents(),
+  listEvents: (query) => EventInternalService.listEvents(query),
 
   getHighlightedEvents: () => EventInternalService.getHighlightedEvents(),
 

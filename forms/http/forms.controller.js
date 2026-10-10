@@ -81,7 +81,7 @@ export const checkResponseExists = asyncHandler(async (req, res) => {
  */
 export const getFormResponses = asyncHandler(async (req, res) => {
   const { form_id } = req.params;
-  const result = await FormsInternalService.getFormResponses(form_id);
+  const result = await FormsInternalService.getFormResponses(form_id, req.query);
   return sendSuccess(res, result, 200);
 });
 

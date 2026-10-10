@@ -106,8 +106,8 @@ export const getMemberById = asyncHandler(async (req, res) => {
 });
 
 export const listMembers = asyncHandler(async (req, res) => {
-  const members = await IAMInternalService.listMembers(req.query);
-  return sendSuccess(res, { members });
+  const result = await IAMInternalService.listMembers(req.query);
+  return sendSuccess(res, result);
 });
 
 export const updateMember = asyncHandler(async (req, res) => {

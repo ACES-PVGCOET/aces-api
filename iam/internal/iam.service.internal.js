@@ -294,7 +294,30 @@ export class IAMInternalService {
     }
     const members = await MemberModel.find(query);
     const memberJsons = members.map((m) => m.toJSON());
-    return sortMembersByRole(memberJsons);
+    const sortedMembers = sortMembersByRole(memberJsons);
+    const total = sortedMembers.length;
+
+    const hasPagination = filters.page !== undefined || filters.limit !== undefined;
+    const pageNum = Math.max(1, parseInt(filters.page, 10) || 1);
+    const limitNum = hasPagination
+      ? Math.max(1, Math.min(100, parseInt(filters.limit, 10) || 10))
+      : 0;
+
+    let paginatedMembers = sortedMembers;
+    if (limitNum > 0) {
+      const skip = (pageNum - 1) * limitNum;
+      paginatedMembers = sortedMembers.slice(skip, skip + limitNum);
+    }
+
+    const effectiveLimit = limitNum > 0 ? limitNum : (total || 1);
+
+    return {
+      members: paginatedMembers,
+      total,
+      page: pageNum,
+      limit: limitNum > 0 ? limitNum : total,
+      total_pages: Math.ceil(total / effectiveLimit) || 1,
+    };
   }
 
   static async updateMember(id, updates, currentUser = null, file = null) {

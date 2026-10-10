@@ -65,12 +65,39 @@ export class EventInternalService {
     return event.toJSON();
   }
 
-  static async listEvents() {
-    const events = await EventModel.find().sort({
+  static async listEvents(query = {}) {
+    const filter = {};
+    if (query.isHighlight !== undefined && query.isHighlight !== null && query.isHighlight !== '') {
+      filter.isHighlight = query.isHighlight === 'true' || query.isHighlight === true;
+    }
+
+    const total = await EventModel.countDocuments(filter);
+
+    let dbQuery = EventModel.find(filter).sort({
       'auditing.created_at': -1,
     });
 
-    return events.map((event) => event.toJSON());
+    const hasPagination = query.page !== undefined || query.limit !== undefined;
+    const pageNum = Math.max(1, parseInt(query.page, 10) || 1);
+    const limitNum = hasPagination
+      ? Math.max(1, Math.min(100, parseInt(query.limit, 10) || 10))
+      : 0;
+
+    if (limitNum > 0) {
+      const skip = (pageNum - 1) * limitNum;
+      dbQuery = dbQuery.skip(skip).limit(limitNum);
+    }
+
+    const events = await dbQuery;
+    const effectiveLimit = limitNum > 0 ? limitNum : (total || 1);
+
+    return {
+      events: events.map((event) => event.toJSON()),
+      total,
+      page: pageNum,
+      limit: limitNum > 0 ? limitNum : total,
+      total_pages: Math.ceil(total / effectiveLimit) || 1,
+    };
   }
 
   static async getHighlightedEvents() {

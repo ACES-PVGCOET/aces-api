@@ -277,8 +277,31 @@ export const listGalleryItems = async (query = {}) => {
     filter.media_type = typeVal;
   }
 
-  const items = await GalleryItemModel.find(filter).sort({ 'auditing.created_at': -1 });
-  return items.map((item) => item.toJSON());
+  const total = await GalleryItemModel.countDocuments(filter);
+
+  let dbQuery = GalleryItemModel.find(filter).sort({ 'auditing.created_at': -1 });
+
+  const hasPagination = query.page !== undefined || query.limit !== undefined;
+  const pageNum = Math.max(1, parseInt(query.page, 10) || 1);
+  const limitNum = hasPagination
+    ? Math.max(1, Math.min(100, parseInt(query.limit, 10) || 20))
+    : 0;
+
+  if (limitNum > 0) {
+    const skip = (pageNum - 1) * limitNum;
+    dbQuery = dbQuery.skip(skip).limit(limitNum);
+  }
+
+  const items = await dbQuery;
+  const effectiveLimit = limitNum > 0 ? limitNum : (total || 1);
+
+  return {
+    items: items.map((item) => item.toJSON()),
+    total,
+    page: pageNum,
+    limit: limitNum > 0 ? limitNum : total,
+    total_pages: Math.ceil(total / effectiveLimit) || 1,
+  };
 };
 
 export const getGalleryItemById = async ({ id }) => {

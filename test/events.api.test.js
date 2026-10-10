@@ -58,6 +58,35 @@ describe('Events Module API Tests', () => {
       assert.equal(res.body.success, true);
       assert.equal(res.body.data.events.length, 1);
       assert.equal(res.body.data.events[0].overview, 'Hackathon 2026');
+      assert.equal(res.body.data.total, 1);
+    });
+
+    it('should paginate events correctly with page and limit query params', async () => {
+      // Create 3 events
+      for (let i = 1; i <= 3; i++) {
+        await request('/api/v1/events', {
+          method: 'POST',
+          token: eventTeamToken,
+          body: {
+            overview: `Event ${i}`,
+            description: `Description ${i}`,
+            terms: 'Standard terms',
+          },
+        });
+      }
+
+      const page1 = await request('/api/v1/events?page=1&limit=2');
+      assert.equal(page1.status, 200);
+      assert.equal(page1.body.data.events.length, 2);
+      assert.equal(page1.body.data.total, 3);
+      assert.equal(page1.body.data.page, 1);
+      assert.equal(page1.body.data.limit, 2);
+      assert.equal(page1.body.data.total_pages, 2);
+
+      const page2 = await request('/api/v1/events?page=2&limit=2');
+      assert.equal(page2.status, 200);
+      assert.equal(page2.body.data.events.length, 1);
+      assert.equal(page2.body.data.page, 2);
     });
   });
 

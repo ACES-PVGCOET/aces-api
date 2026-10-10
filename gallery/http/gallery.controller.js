@@ -73,9 +73,9 @@ export const renameCollection = asyncHandler(async (req, res) => {
 });
 
 export const listGalleryItems = asyncHandler(async (req, res) => {
-  const items = await GalleryService.listGalleryItems(req.query);
+  const result = await GalleryService.listGalleryItems(req.query);
 
-  return sendSuccess(res, { items });
+  return sendSuccess(res, result);
 });
 
 export const getGalleryItemById = asyncHandler(async (req, res) => {

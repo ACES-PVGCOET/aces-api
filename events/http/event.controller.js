@@ -38,10 +38,10 @@ export const createEvent = asyncHandler(async (req, res) => {
   return sendSuccess(res, event, 201);
 });
 
-export const listEvents = asyncHandler(async (_req, res) => {
-  const events = await EventsService.listEvents();
+export const listEvents = asyncHandler(async (req, res) => {
+  const result = await EventsService.listEvents(req.query);
 
-  return sendSuccess(res, { events });
+  return sendSuccess(res, result);
 });
 
 export const getHighlightedEvents = asyncHandler(async (_req, res) => {
