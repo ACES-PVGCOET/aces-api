@@ -8,6 +8,7 @@ import {
   request,
 } from './helpers/testServer.js';
 import { formatGoogleSheetCsvUrl, parseCSV } from '../iam/internal/iam.service.internal.js';
+import { MemberModel } from '../iam/internal/member.model.js';
 
 describe('IAM Module API Tests - Bulk Register Endpoint', () => {
   let adminToken;
@@ -641,6 +642,114 @@ Eve Adams, eve.adams@aces.org, Marketing Team, Member`;
       assert.equal(facultyMembers.length, 2);
       assert.equal(facultyMembers[0].position, 'Head Of Department');
       assert.equal(facultyMembers[1].position, 'Faculty Coordinator');
+    });
+  });
+
+  describe('Forgot Password and Reset Password Feature Tests', () => {
+    it('should reject forgot-password request when email is missing', async () => {
+      const res = await request('/api/v1/iam/forgot-password', {
+        method: 'POST',
+        body: {},
+      });
+      assert.equal(res.status, 400);
+      assert.equal(res.body.success, false);
+      assert.equal(res.body.error.code, 'INVALID_INPUT');
+    });
+
+    it('should return generic success message when email is non-existent', async () => {
+      const res = await request('/api/v1/iam/forgot-password', {
+        method: 'POST',
+        body: { email: 'nonexistent@example.com' },
+      });
+      assert.equal(res.status, 200);
+      assert.equal(res.body.success, true);
+      assert.equal(
+        res.body.data.message,
+        'If an account exists with this email, a password reset link has been sent.'
+      );
+    });
+
+    it('should generate reset token and allow password reset and login for registered member', async () => {
+      // 1. Register a member
+      const regRes = await request('/api/v1/iam/register', {
+        method: 'POST',
+        token: adminToken,
+        body: {
+          name: 'Reset Test User',
+          email: 'reset.test@example.com',
+          team: 'Web Team',
+          position: 'Member',
+        },
+      });
+      assert.equal(regRes.status, 201);
+      const onboardingToken = regRes.body.data.onboarding_token;
+
+      // 2. Complete onboarding to set initial password
+      const onboardRes = await request('/api/v1/iam/onboard', {
+        method: 'POST',
+        body: {
+          token: onboardingToken,
+          password: 'OldPassword123!',
+        },
+      });
+      assert.equal(onboardRes.status, 200);
+
+      // 3. Request forgot password
+      const forgotRes = await request('/api/v1/iam/forgot-password', {
+        method: 'POST',
+        body: { email: 'reset.test@example.com' },
+      });
+      assert.equal(forgotRes.status, 200);
+
+      // Verify token in database
+      const memberInDb = await MemberModel.findOne({ email: 'reset.test@example.com' }).select(
+        '+reset_password_token +reset_password_expires_at'
+      );
+      assert.ok(memberInDb.reset_password_token);
+      assert.ok(memberInDb.reset_password_expires_at > new Date());
+      const resetToken = memberInDb.reset_password_token;
+
+      // 4. Reset password with invalid token should fail
+      const invalidResetRes = await request('/api/v1/iam/reset-password', {
+        method: 'POST',
+        body: {
+          token: 'invalid-token-123456',
+          password: 'NewPassword123!',
+        },
+      });
+      assert.equal(invalidResetRes.status, 400);
+
+      // 5. Reset password with valid token
+      const resetRes = await request('/api/v1/iam/reset-password', {
+        method: 'POST',
+        body: {
+          token: resetToken,
+          password: 'BrandNewPassword123!',
+        },
+      });
+      assert.equal(resetRes.status, 200);
+      assert.equal(resetRes.body.data.message, 'Password has been reset successfully.');
+
+      // 6. Old password should no longer work
+      const oldLoginRes = await request('/api/v1/iam/login', {
+        method: 'POST',
+        body: {
+          email: 'reset.test@example.com',
+          password: 'OldPassword123!',
+        },
+      });
+      assert.equal(oldLoginRes.status, 401);
+
+      // 7. New password should work
+      const newLoginRes = await request('/api/v1/iam/login', {
+        method: 'POST',
+        body: {
+          email: 'reset.test@example.com',
+          password: 'BrandNewPassword123!',
+        },
+      });
+      assert.equal(newLoginRes.status, 200);
+      assert.equal(newLoginRes.body.success, true);
     });
   });
 });

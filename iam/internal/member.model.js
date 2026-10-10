@@ -50,6 +50,14 @@ const memberSchema = new mongoose.Schema(
       type: Date,
       select: false,
     },
+    reset_password_token: {
+      type: String,
+      select: false,
+    },
+    reset_password_expires_at: {
+      type: Date,
+      select: false,
+    },
     social_links: {
       linkedin: { type: String, default: '' },
       instagram: { type: String, default: '' },
@@ -66,6 +74,8 @@ const memberSchema = new mongoose.Schema(
         delete ret.password;
         delete ret.onboarding_token;
         delete ret.onboarding_token_expires_at;
+        delete ret.reset_password_token;
+        delete ret.reset_password_expires_at;
         return ret;
       },
     },

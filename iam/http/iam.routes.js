@@ -7,6 +7,8 @@ const router = Router();
 
 // Public routes
 router.post('/onboard', iamController.completeOnboarding);
+router.post('/forgot-password', iamController.forgotPassword);
+router.post('/reset-password', iamController.resetPassword);
 router.post('/login', iamController.loginMember);
 router.post('/logout', iamController.logoutMember);
 router.get('/members', optionalAuthenticate, iamController.listMembers);

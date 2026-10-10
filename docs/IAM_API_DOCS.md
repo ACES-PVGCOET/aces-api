@@ -324,7 +324,83 @@ Content-Type: application/json
 
 ---
 
-### 5.3 Member Login
+### 5.4 Request Password Reset (Forgot Password)
+Initiates a password reset request for a member by generating a secure single-use token valid for 1 hour and dispatching a password reset link via email.
+
+* **Method:** `POST`
+* **Path:** `/api/v1/iam/forgot-password`
+* **Content-Type:** `application/json`
+* **Authorization:** None (Public)
+
+#### Request Parameters
+| Parameter | Type | Required | Description |
+| :--- | :--- | :--- | :--- |
+| `email` | String | Yes | Registered member email address. |
+
+#### Request Example
+```http
+POST /api/v1/iam/forgot-password HTTP/1.1
+Host: localhost:5000
+Content-Type: application/json
+
+{
+  "email": "sarah.connor@college.edu"
+}
+```
+
+#### Response Example (`200 OK`)
+```json
+{
+  "success": true,
+  "data": {
+    "message": "If an account exists with this email, a password reset link has been sent."
+  },
+  "error": null
+}
+```
+
+---
+
+### 5.5 Complete Password Reset
+Resets the member's account password using a valid, non-expired password reset token received via email.
+
+* **Method:** `POST`
+* **Path:** `/api/v1/iam/reset-password`
+* **Content-Type:** `application/json`
+* **Authorization:** None (Public)
+
+#### Request Parameters
+| Parameter | Type | Required | Description |
+| :--- | :--- | :--- | :--- |
+| `token` | String | Yes | Single-use hex password reset token from email link. |
+| `password` | String | Yes | New password for the account (minimum 6 characters). |
+
+#### Request Example
+```http
+POST /api/v1/iam/reset-password HTTP/1.1
+Host: localhost:5000
+Content-Type: application/json
+
+{
+  "token": "a1b2c3d4e5f678901234567890abcdefa1b2c3d4e5f678901234567890abcdef",
+  "password": "MyBrandNewPassword123!"
+}
+```
+
+#### Response Example (`200 OK`)
+```json
+{
+  "success": true,
+  "data": {
+    "message": "Password has been reset successfully."
+  },
+  "error": null
+}
+```
+
+---
+
+### 5.6 Member Login
 Authenticates member credentials, returns account details, and attaches a JWT authentication token in an HTTP-only cookie.
 
 * **Method:** `POST`
