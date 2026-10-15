@@ -50,8 +50,8 @@ export class FormsInternalService {
         // Generate formal statement automatically if not provided or empty
         if (!statement) {
           statement = fallbackQr
-            ? `Please pay ₹${amount} using one of the following QR codes and upload your payment confirmation screenshot.`
-            : `Please pay ₹${amount} using the QR code below and upload your payment confirmation screenshot.`;
+            ? `Please pay ₹${amount} using one of the following QR codes and upload your payment confirmation screenshot. If ACES member, please upload membership card.`
+            : `Please pay ₹${amount} using the QR code below and upload your payment confirmation screenshot. If ACES member, please upload membership card.`;
         }
 
         paymentPolicy = {

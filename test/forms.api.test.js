@@ -838,6 +838,7 @@ describe('Forms Module API Tests', () => {
       assert.equal(q.payment_policy.primary_qr_url, 'https://res.cloudinary.com/aces/image/upload/v1/qr_primary.png');
       assert.equal(q.payment_policy.fallback_qr_url, 'https://res.cloudinary.com/aces/image/upload/v1/qr_fallback.png');
       assert.match(q.question_statement, /Please pay ₹300 using one of the following QR codes/);
+      assert.match(q.question_statement, /If ACES member, please upload membership card\./);
     });
 
     it('should handle single primary QR auto-statement correctly', async () => {
@@ -865,6 +866,7 @@ describe('Forms Module API Tests', () => {
       const getRes = await request(`/api/v1/forms/${res.body.data.form_id}`);
       const q = getRes.body.data.questions[0];
       assert.match(q.question_statement, /Please pay ₹150 using the QR code below/);
+      assert.match(q.question_statement, /If ACES member, please upload membership card\./);
     });
 
     it('should validate response submission for payment_acceptance and record screenshot', async () => {
