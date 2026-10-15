@@ -16,6 +16,16 @@ const formSchema = new mongoose.Schema(
       type: Boolean,
       default: true,
     },
+    whatsapp_group_link: {
+      type: String,
+      trim: true,
+      default: '',
+    },
+    whatsapp_qr_code: {
+      type: String, // Cloudinary image URL or static image URL
+      trim: true,
+      default: '',
+    },
     question_ids: [
       {
         type: mongoose.Schema.Types.ObjectId,
