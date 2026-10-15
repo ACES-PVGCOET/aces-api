@@ -60,7 +60,8 @@ export class FormsInternalService {
   /**
    * Create a new form along with its structured questions
    */
-  static async createForm({ title, description, questions = [], created_by }) {
+  static async createForm({ title, description, questions = [], created_by, whatsapp_group_link = '', whatsapp_qr_code = '' }) 
+  {
     if (!title || typeof title !== 'string' || !title.trim()) {
       throw new ValidationError('Form title is required.');
     }
@@ -74,6 +75,8 @@ export class FormsInternalService {
       title: title.trim(),
       description: description ? description.trim() : '',
       created_by,
+      whatsapp_group_link: whatsapp_group_link?.trim() || '',
+      whatsapp_qr_code: whatsapp_qr_code?.trim() || '',
     });
 
     try {
@@ -130,14 +133,16 @@ export class FormsInternalService {
     }));
 
     return {
-      form_id: form._id,
-      title: form.title,
-      description: form.description,
-      is_active: form.is_active,
-      questions: formattedQuestions,
-      created_at: form.createdAt,
-      updated_at: form.updatedAt,
-    };
+  form_id: form._id,
+  title: form.title,
+  description: form.description,
+  is_active: form.is_active,
+  whatsapp_group_link: form.whatsapp_group_link || '',
+  whatsapp_qr_code: form.whatsapp_qr_code || '',
+  questions: formattedQuestions,
+  created_at: form.createdAt,
+  updated_at: form.updatedAt,
+};
   }
 
   /**
@@ -217,6 +222,12 @@ export class FormsInternalService {
 
     if (updateData.is_active !== undefined) {
       form.is_active = Boolean(updateData.is_active);
+    }
+    if (updateData.whatsapp_group_link !== undefined) {
+      form.whatsapp_group_link = updateData.whatsapp_group_link.trim();
+    }
+    if (updateData.whatsapp_qr_code !== undefined) {
+      form.whatsapp_qr_code = updateData.whatsapp_qr_code.trim();
     }
 
     form.updated_by = updated_by;
@@ -374,12 +385,14 @@ export class FormsInternalService {
         submitted_at: new Date(),
       });
 
-      return {
-        response_id: formResponse._id,
-        form_id: form._id,
-        email: formResponse.email,
-        submitted_at: formResponse.submitted_at,
-      };
+     return {
+  response_id: formResponse._id,
+  form_id: form._id,
+  email: formResponse.email,
+  submitted_at: formResponse.submitted_at,
+  whatsapp_group_link: form.whatsapp_group_link || '',
+  whatsapp_qr_code: form.whatsapp_qr_code || '',
+};
     } catch (err) {
       if (err.code === 11000) {
         throw new ValidationError('A response has already been submitted with this email address.');
