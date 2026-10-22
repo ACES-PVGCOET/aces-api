@@ -28,6 +28,12 @@ router.post(
   controller.bulkImportMemberships
 );
 
+// Sync from Forms API
+router.get('/sync-status', optionalAuthenticate, controller.getSyncStatus);
+router.post('/sync', optionalAuthenticate, controller.syncMemberships);
+router.get('/sync', optionalAuthenticate, controller.syncMemberships);
+
+
 // List and Create (Public student registration with optional auth)
 router.get('/', optionalAuthenticate, controller.listMemberships);
 router.post('/', optionalAuthenticate, uploadSingle('receipt_file'), controller.createMembership);
@@ -35,6 +41,10 @@ router.post('/', optionalAuthenticate, uploadSingle('receipt_file'), controller.
 // Digital ID Card (Public - only verified members)
 router.get('/id-card/:membershipNo', optionalAuthenticate, controller.getIdCard);
 router.get('/id-card', optionalAuthenticate, controller.getIdCard);
+
+// Resend Membership Verification Email with ID Card
+router.post('/resend-email', optionalAuthenticate, controller.resendMembershipEmail);
+router.post('/:id/resend-email', optionalAuthenticate, controller.resendMembershipEmail);
 
 // Single Item Operations
 router.get('/:id', optionalAuthenticate, controller.getMembershipById);
@@ -52,6 +62,12 @@ router.put(
 );
 router.delete(
   '/:id',
+  authenticate,
+  authorize('membership.delete'),
+  controller.deleteMembership
+);
+router.delete(
+  '/',
   authenticate,
   authorize('membership.delete'),
   controller.deleteMembership

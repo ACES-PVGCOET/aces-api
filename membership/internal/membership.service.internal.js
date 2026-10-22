@@ -2,11 +2,12 @@ import { execFile } from 'child_process';
 import util from 'util';
 import fs from 'fs';
 import mongoose from 'mongoose';
-import { MembershipModel, MEMBERSHIP_STATUS, RECEIPT_STATUS } from './membership.model.js';
+import { MembershipModel, MembershipSyncMetaModel, MEMBERSHIP_STATUS, RECEIPT_STATUS } from './membership.model.js';
 import { NotFoundError, ValidationError, ConflictError, ForbiddenError } from '../../shared/errors/index.js';
 import { processUploadedFile } from '../../shared/utils/fileUpload.js';
 import { generateIdCardPng, calculateValidUpto } from '../../shared/utils/idCardGenerator.js';
 import { sendMembershipVerificationEmail } from '../../shared/utils/mailer.js';
+import { FormsService } from '../../forms/index.js';
 
 const execFileAsync = util.promisify(execFile);
 
@@ -121,6 +122,8 @@ export class MembershipInternalService {
       limit: limitNum,
       totalPages: Math.ceil(total / limitNum) || 1,
       stats,
+      lastMembershipSynced: stats?.lastMembershipSynced || null,
+      lastSyncedAt: stats?.lastSyncedAt || null,
     };
   }
 
@@ -342,14 +345,41 @@ export class MembershipInternalService {
   }
 
   /**
-   * Delete a membership record
+   * Delete a membership record by ID, receipt number, or email
    */
-  static async deleteMembership(id) {
-    const record = await MembershipModel.findByIdAndDelete(id);
-    if (!record) {
-      throw new NotFoundError(`Membership registration with ID '${id}' not found.`);
+  static async deleteMembership(identifier) {
+    if (!identifier || !String(identifier).trim()) {
+      throw new ValidationError('Membership ID, receipt number, or email is required.');
     }
-    return { message: 'Membership record deleted successfully.' };
+
+    const cleanId = String(identifier).trim();
+    let record = null;
+
+    if (mongoose.Types.ObjectId.isValid(cleanId)) {
+      record = await MembershipModel.findByIdAndDelete(cleanId);
+    }
+
+    if (!record && cleanId.includes('@')) {
+      record = await MembershipModel.findOneAndDelete({ email: cleanId.toLowerCase() });
+    }
+
+    if (!record) {
+      record = await MembershipModel.findOneAndDelete({
+        receipt_number: new RegExp(`^${cleanId}$`, 'i'),
+      });
+    }
+
+    if (!record) {
+      throw new NotFoundError(`Membership registration '${cleanId}' not found.`);
+    }
+
+    return {
+      message: 'Membership record deleted successfully.',
+      id: record._id.toString(),
+      full_name: record.full_name,
+      email: record.email,
+      receipt_number: record.receipt_number,
+    };
   }
 
   /**
@@ -483,7 +513,19 @@ with zipfile.ZipFile(file_path) as z:
    * Get high-level summary statistics
    */
   static async getStatistics() {
-    const [total, pending, verified, rejected, classesAgg, modesAgg, totalAmountAgg] = await Promise.all([
+    const defaultFormId = process.env.MEMBERSHIP_FORM_ID;
+    const syncQuery =
+      defaultFormId && mongoose.Types.ObjectId.isValid(String(defaultFormId).trim())
+        ? {
+            $or: [
+              { form_id: String(defaultFormId).trim() },
+              { key: `form_sync_${String(defaultFormId).trim()}` },
+              { key: 'membership_form_sync' },
+            ],
+          }
+        : {};
+
+    const [total, pending, verified, rejected, classesAgg, modesAgg, totalAmountAgg, syncMeta] = await Promise.all([
       MembershipModel.countDocuments(),
       MembershipModel.countDocuments({ status: MEMBERSHIP_STATUS.PENDING }),
       MembershipModel.countDocuments({ status: MEMBERSHIP_STATUS.VERIFIED }),
@@ -498,6 +540,7 @@ with zipfile.ZipFile(file_path) as z:
         { $match: { status: MEMBERSHIP_STATUS.VERIFIED } },
         { $group: { _id: null, totalCollected: { $sum: '$amount' } } },
       ]),
+      MembershipSyncMetaModel.findOne(syncQuery).sort({ updatedAt: -1 }),
     ]);
 
     const byClass = {};
@@ -520,6 +563,477 @@ with zipfile.ZipFile(file_path) as z:
       byClass,
       byMode,
       totalCollected,
+      lastMembershipSynced: syncMeta?.lastMembershipSynced || syncMeta?.last_synced_at || null,
+      lastSyncedAt: syncMeta?.last_synced_at || syncMeta?.lastMembershipSynced || null,
+    };
+  }
+
+  /**
+   * Get sync metadata and last synced timestamp
+   */
+  static async getSyncStatus(formIdInput = null) {
+    const formId = formIdInput || process.env.MEMBERSHIP_FORM_ID;
+    const cleanFormId = formId && String(formId).trim();
+    const query =
+      cleanFormId && mongoose.Types.ObjectId.isValid(cleanFormId)
+        ? {
+            $or: [
+              { form_id: cleanFormId },
+              { key: `form_sync_${cleanFormId}` },
+              { key: 'membership_form_sync' },
+            ],
+          }
+        : {};
+
+    const syncMeta = await MembershipSyncMetaModel.findOne(query).sort({ updatedAt: -1 });
+
+    return {
+      form_id: cleanFormId || syncMeta?.form_id || null,
+      lastMembershipSynced: syncMeta?.lastMembershipSynced || null,
+      last_synced_at: syncMeta?.last_synced_at || null,
+      lastSyncedAt: syncMeta?.last_synced_at || syncMeta?.lastMembershipSynced || null,
+      synced_count: syncMeta?.synced_count || 0,
+      ignored_count: syncMeta?.ignored_count || 0,
+    };
+  }
+
+  /**
+   * Helper method to flexibly extract and validate member details from a form response
+   */
+  static _extractMemberFromResponse(response, formQuestions = []) {
+    let answers = {};
+    if (response.answers instanceof Map) {
+      answers = Object.fromEntries(response.answers);
+    } else if (response.answers && typeof response.answers === 'object') {
+      answers = response.answers;
+    }
+
+    const getAnswer = (key) => {
+      if (key === undefined || key === null) return '';
+      const val = answers[key] !== undefined ? answers[key] : answers[String(key)];
+      if (Array.isArray(val)) {
+        return val.length > 0 ? String(val[0]).trim() : '';
+      }
+      if (val !== undefined && val !== null) {
+        return String(val).trim();
+      }
+      return '';
+    };
+
+    let nameSerial = null;
+    let yearSerial = null;
+    let paymentSerial = null;
+    let contactSerial = null;
+    let emailSerial = null;
+
+    for (const q of formQuestions) {
+      const serial = String(q.question_serial);
+      const statement = (q.question_statement || '').trim().toLowerCase();
+      const type = (q.question_type || '').trim().toLowerCase();
+
+      // Payment question: payment_acceptance or file with statement matching payment/screenshot/receipt/proof/transaction
+      if (type === 'payment_acceptance') {
+        paymentSerial = serial;
+      } else if (!paymentSerial && type === 'file' && /(?:payment|screenshot|receipt|proof|transaction|fee|upi)/i.test(statement)) {
+        paymentSerial = serial;
+      }
+
+      // Name question: statement matching name, but not father's/mother's/college name
+      if (!nameSerial && /(?:full\s*name|student\s*name|^name$)/i.test(statement)) {
+        nameSerial = serial;
+      } else if (!nameSerial && statement.includes('name') && !/(?:father|mother|parent|college|institute)/i.test(statement)) {
+        nameSerial = serial;
+      }
+
+      // Year question: statement matching year / class
+      if (!yearSerial && /(?:class|year|current\s*year|academic\s*year|branch\s*and\s*year)/i.test(statement)) {
+        yearSerial = serial;
+      }
+
+      // Contact question: statement matching phone / contact / whatsapp / mobile
+      if (!contactSerial && /(?:contact|phone|whatsapp|mobile)/i.test(statement)) {
+        contactSerial = serial;
+      }
+
+      // Email question: statement matching email
+      if (!emailSerial && /email/i.test(statement)) {
+        emailSerial = serial;
+      }
+    }
+
+    // 1. Email (Required)
+    let email = (response.email || '').trim().toLowerCase();
+    if (!email && emailSerial) {
+      email = getAnswer(emailSerial).toLowerCase();
+    }
+    if (!email) {
+      for (const key of ['email', 'email_id', 'email_address', 'mail']) {
+        if (answers[key]) {
+          const val = getAnswer(key);
+          if (val) {
+            email = val.toLowerCase();
+            break;
+          }
+        }
+      }
+    }
+
+    // 2. Name (Required)
+    let fullName = '';
+    if (nameSerial) {
+      fullName = getAnswer(nameSerial);
+    }
+    if (!fullName) {
+      for (const key of ['full_name', 'name', 'student_name', 'fullName']) {
+        if (answers[key]) {
+          const val = getAnswer(key);
+          if (val) {
+            fullName = val;
+            break;
+          }
+        }
+      }
+    }
+    if (!fullName && formQuestions.length > 0) {
+      for (const q of formQuestions) {
+        if (
+          q.question_type === 'textual' &&
+          !/(?:contact|phone|email|whatsapp)/i.test(q.question_statement || '')
+        ) {
+          const val = getAnswer(q.question_serial);
+          if (val) {
+            fullName = val;
+            break;
+          }
+        }
+      }
+    }
+
+    // 3. Year (Required)
+    let rawYear = '';
+    if (yearSerial) {
+      rawYear = getAnswer(yearSerial);
+    }
+    if (!rawYear) {
+      for (const key of [
+        'class_name',
+        'year',
+        'class',
+        'className',
+        'current_year',
+        'academic_year',
+        'study_year',
+      ]) {
+        if (answers[key]) {
+          const val = getAnswer(key);
+          if (val) {
+            rawYear = val;
+            break;
+          }
+        }
+      }
+    }
+    let className = '';
+    if (rawYear) {
+      className = normalizeClassName(rawYear);
+    }
+
+    // 4. Payment Screenshot URL (Required)
+    let transactionSsUrl = '';
+    if (paymentSerial) {
+      transactionSsUrl = getAnswer(paymentSerial);
+    }
+    if (!transactionSsUrl) {
+      for (const key of [
+        'transaction_ss_url',
+        'payment_screenshot_url',
+        'payment_screenshot',
+        'screenshot_url',
+        'payment_url',
+        'receipt_url',
+        'screenshot',
+        'receipt',
+        'payment_proof',
+      ]) {
+        if (answers[key]) {
+          const val = getAnswer(key);
+          if (val) {
+            transactionSsUrl = val;
+            break;
+          }
+        }
+      }
+    }
+    if (!transactionSsUrl) {
+      for (const k of Object.keys(answers)) {
+        const val = getAnswer(k);
+        if (val && /^https?:\/\/.+/i.test(val)) {
+          transactionSsUrl = val;
+          break;
+        }
+      }
+    }
+
+    // Optional: Contact number
+    let contactNumber = '';
+    if (contactSerial) {
+      contactNumber = normalizePhoneNumber(getAnswer(contactSerial));
+    }
+    if (!contactNumber) {
+      for (const key of ['contact_number', 'phone', 'contact', 'whatsapp', 'mobile']) {
+        if (answers[key]) {
+          const val = getAnswer(key);
+          if (val) {
+            contactNumber = normalizePhoneNumber(val);
+            break;
+          }
+        }
+      }
+    }
+
+    // Optional: Amount from payment question policy
+    let amount = 450;
+    const paymentQ = formQuestions.find((q) => q.question_type === 'payment_acceptance');
+    if (paymentQ?.payment_policy?.amount) {
+      amount = Number(paymentQ.payment_policy.amount) || 450;
+    } else if (answers.amount) {
+      amount = Number(getAnswer('amount')) || 450;
+    }
+
+    // Validate Required Fields: email, name, year, payment screen shot url
+    const missingFields = [];
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!email || !emailRegex.test(email)) {
+      missingFields.push('email');
+    }
+    if (!fullName) {
+      missingFields.push('name');
+    }
+    if (!className) {
+      missingFields.push('year');
+    }
+    if (!transactionSsUrl) {
+      missingFields.push('payment screen shot url');
+    }
+
+    if (missingFields.length > 0) {
+      return {
+        valid: false,
+        error: `Missing or invalid required field(s): ${missingFields.join(', ')}`,
+      };
+    }
+
+    return {
+      valid: true,
+      data: {
+        full_name: fullName,
+        email,
+        class_name: className,
+        contact_number: contactNumber || '',
+        payment_mode: 'UPI',
+        payment_date: response.submitted_at
+          ? new Date(response.submitted_at).toLocaleDateString('en-GB')
+          : '',
+        amount,
+        transaction_ss_url: transactionSsUrl,
+        status: MEMBERSHIP_STATUS.PENDING,
+        source: 'forms_api_sync',
+        registration_timestamp: response.submitted_at
+          ? new Date(response.submitted_at).toISOString()
+          : new Date().toISOString(),
+      },
+    };
+  }
+
+  /**
+   * Sync members registered using form created via Forms API
+   */
+  static async syncFromForm(formIdInput = null) {
+    const formId = formIdInput || process.env.MEMBERSHIP_FORM_ID;
+    if (!formId || !String(formId).trim()) {
+      throw new ValidationError(
+        'MEMBERSHIP_FORM_ID environment variable is not configured and no form_id was provided.'
+      );
+    }
+
+    const cleanFormId = String(formId).trim();
+    if (!mongoose.Types.ObjectId.isValid(cleanFormId)) {
+      throw new ValidationError('Invalid form ID format.');
+    }
+
+    // 1. Fetch form to get questions and verify existence
+    const form = await FormsService.getFormById(cleanFormId);
+    if (!form) {
+      throw new NotFoundError(`Form with ID '${cleanFormId}' not found.`);
+    }
+
+    // 2. Fetch last sync timestamp from DB
+    const syncMeta = await MembershipSyncMetaModel.findOne({
+      $or: [{ form_id: cleanFormId }, { key: `form_sync_${cleanFormId}` }],
+    }).sort({ updatedAt: -1 });
+
+    const lastMembershipSynced = syncMeta?.lastMembershipSynced || null;
+
+    // 3. Fetch form responses submitted after lastMembershipSynced
+    const fetchOptions = {};
+    if (lastMembershipSynced) {
+      fetchOptions.since = lastMembershipSynced;
+    }
+
+    const responseResult = await FormsService.getFormResponses(cleanFormId, fetchOptions);
+    const rawResponses = responseResult.responses || [];
+
+    // Filter in-memory as safety guarantee
+    const responses = lastMembershipSynced
+      ? rawResponses.filter((r) => new Date(r.submitted_at) > new Date(lastMembershipSynced))
+      : rawResponses;
+
+    let syncedCount = 0;
+    let skippedCount = 0;
+    let failedCount = 0;
+    const errors = [];
+    const syncedMembers = [];
+    let maxSubmittedAt = lastMembershipSynced ? new Date(lastMembershipSynced) : null;
+
+    // Sort responses chronologically (oldest first)
+    const sortedResponses = [...responses].sort(
+      (a, b) => new Date(a.submitted_at).getTime() - new Date(b.submitted_at).getTime()
+    );
+
+    for (let i = 0; i < sortedResponses.length; i++) {
+      const response = sortedResponses[i];
+      const submittedAt = response.submitted_at ? new Date(response.submitted_at) : null;
+
+      if (submittedAt && (!maxSubmittedAt || submittedAt > maxSubmittedAt)) {
+        maxSubmittedAt = submittedAt;
+      }
+
+      // Extract and validate fields
+      const extraction = this._extractMemberFromResponse(response, form.questions || []);
+      if (!extraction.valid) {
+        failedCount++;
+        errors.push({
+          response_id: response.response_id,
+          email: response.email || 'unknown',
+          error: extraction.error,
+        });
+        continue;
+      }
+
+      const { data } = extraction;
+
+      // Duplicate check: email is the unique identifier
+      const existing = await MembershipModel.findOne({ email: data.email });
+      if (existing) {
+        skippedCount++;
+        continue;
+      }
+
+      // Register new membership
+      const created = await MembershipModel.create(data);
+      syncedCount++;
+      syncedMembers.push(created.toJSON());
+    }
+
+    // 4. Update lastMembershipSynced in DB
+    const finalSyncTimestamp =
+      maxSubmittedAt || (lastMembershipSynced ? new Date(lastMembershipSynced) : new Date());
+
+    const updatedMeta = await MembershipSyncMetaModel.findOneAndUpdate(
+      { key: `form_sync_${cleanFormId}` },
+      {
+        key: `form_sync_${cleanFormId}`,
+        form_id: cleanFormId,
+        lastMembershipSynced: finalSyncTimestamp,
+        last_synced_at: new Date(),
+        $inc: { synced_count: syncedCount, ignored_count: skippedCount },
+      },
+      { upsert: true, new: true }
+    );
+
+    return {
+      form_id: cleanFormId,
+      form_title: form.title,
+      synced_count: syncedCount,
+      skipped_count: skippedCount,
+      failed_count: failedCount,
+      total_fetched: responses.length,
+      lastMembershipSynced: updatedMeta.lastMembershipSynced,
+      synced_members: syncedMembers,
+      errors: errors.length > 0 ? errors : undefined,
+    };
+  }
+
+  /**
+   * Resend membership verification email with generated digital ID card
+   */
+  static async resendMembershipEmail(identifier) {
+    if (!identifier || !String(identifier).trim()) {
+      throw new ValidationError('Membership ID, receipt number, or email is required.');
+    }
+
+    const cleanId = String(identifier).trim();
+    let record = null;
+
+    if (cleanId.includes('@')) {
+      record = await MembershipModel.findOne({ email: cleanId.toLowerCase() });
+    } else {
+      if (mongoose.Types.ObjectId.isValid(cleanId)) {
+        record = await MembershipModel.findById(cleanId);
+      }
+      if (!record) {
+        record = await MembershipModel.findOne({
+          receipt_number: new RegExp(`^${cleanId}$`, 'i'),
+        });
+      }
+    }
+
+    if (!record) {
+      throw new NotFoundError(`Membership registration '${cleanId}' not found.`);
+    }
+
+    if (!record.email || !record.email.trim()) {
+      throw new ValidationError('Member does not have an email address registered.');
+    }
+
+    if (record.status !== MEMBERSHIP_STATUS.VERIFIED) {
+      throw new ForbiddenError(
+        `Cannot resend email: Membership is not verified (current status: ${record.status}). ID card email can only be sent to verified members.`
+      );
+    }
+
+    if (!record.receipt_number) {
+      record.receipt_number = generateReceiptNumber();
+    }
+
+    const validUpto = calculateValidUpto(record.verified_at || record.createdAt);
+    const idCardBuffer = await generateIdCardPng({
+      fullName: record.full_name,
+      membershipNo: record.receipt_number,
+      validUpto,
+    });
+
+    const mailResult = await sendMembershipVerificationEmail({
+      email: record.email.trim(),
+      name: record.full_name,
+      membershipNo: record.receipt_number,
+      validUpto,
+      idCardBuffer,
+    });
+
+    if (mailResult && mailResult.success) {
+      record.receipt_status = RECEIPT_STATUS.SENT;
+    }
+
+    await record.save();
+
+    return {
+      message: 'Membership verification email with ID card resent successfully.',
+      email: record.email,
+      receipt_number: record.receipt_number,
+      receipt_status: record.receipt_status,
+      record: record.toJSON(),
     };
   }
 }
+

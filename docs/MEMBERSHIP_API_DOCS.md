@@ -375,17 +375,29 @@ Updates editable registration attributes.
 ---
 
 ### 5.7 Delete Membership Record
-Deletes a membership registration from the database.
+Deletes a membership registration from the database. Supports identifying the target membership by its MongoDB ObjectId, receipt / membership number (e.g. `ACES-2026-5501`), or registered email address.
 
 - **Method**: `DELETE`
-- **Endpoint**: `/api/v1/membership/:id`
-- **Auth**: Optional
+- **Endpoints**:
+  * `/api/v1/membership/:id` (where `:id` can be an ObjectId, receipt number, or email)
+  * `/api/v1/membership` (with `id`, `membership_no`, or `email` in request body or query)
+- **Auth**: Protected (`membership.delete` authority required)
+- **Request Body (Optional when using `/api/v1/membership`)**:
+  ```json
+  {
+    "email": "neha.patil@college.edu"
+  }
+  ```
 - **Response (`200 OK`)**:
   ```json
   {
     "success": true,
     "data": {
-      "message": "Membership record deleted successfully."
+      "message": "Membership record deleted successfully.",
+      "id": "66bc600011223344556677bb",
+      "full_name": "Neha Patil",
+      "email": "neha.patil@college.edu",
+      "receipt_number": "ACES-2026-5501"
     },
     "error": null
   }
@@ -460,6 +472,97 @@ Parses a local `.xlsx` responses spreadsheet file using the zero-dependency embe
 
 ---
 
+### 5.10 Sync Memberships from Forms API
+Fetches responses from a membership registration form created via the Forms API. Treats `email` as the unique identifier; if a membership registration with that email already exists, it is ignored and preserved. Only fetches and processes responses submitted after the last recorded `lastMembershipSynced` timestamp stored in the database for optimal incremental synchronization.
+
+Flexible schema parsing maps questions to required fields:
+* `email`: From form filler email or email questions (Required)
+* `full_name`: From student full name question or textual policy (Required)
+* `class_name`: Standardized year (`SE`, `TE`, `BE`) (Required)
+* `transaction_ss_url`: From `payment_acceptance` question or file upload (Required)
+
+Form ID defaults to the `MEMBERSHIP_FORM_ID` environment variable, or can be overridden via `form_id` in request body/query.
+
+- **Method**: `POST` or `GET`
+- **Endpoint**: `/api/v1/membership/sync`
+- **Auth**: Optional
+- **Query / Body Parameters**:
+  | Parameter | Type | Default | Description |
+  | :--- | :--- | :--- | :--- |
+  | `form_id` | `String` | `process.env.MEMBERSHIP_FORM_ID` | Optional override for the target form ID |
+
+- **Response (`200 OK`)**:
+  ```json
+  {
+    "success": true,
+    "data": {
+      "form_id": "6a8875e5b3701104fe3b9965",
+      "form_title": "ACES Annual Membership Drive 2026",
+      "synced_count": 2,
+      "skipped_count": 1,
+      "failed_count": 0,
+      "total_fetched": 3,
+      "lastMembershipSynced": "2026-10-22T16:50:35.000Z",
+      "synced_members": [
+        {
+          "id": "6717d9ab1234567890abcdef",
+          "full_name": "Alice Smith",
+          "email": "alice.smith@college.edu",
+          "class_name": "SE",
+          "contact_number": "9876543210",
+          "payment_mode": "UPI",
+          "amount": 450,
+          "transaction_ss_url": "https://res.cloudinary.com/aces/alice_ss.png",
+          "status": "PENDING",
+          "source": "forms_api_sync"
+        }
+      ]
+    },
+    "error": null
+  }
+  ```
+
+---
+
+### 5.11 Resend Membership Email (with Digital ID Card)
+Re-generates the member's official digital ID card PNG using Puppeteer and dispatches the welcome & verification email to their registered email address via Resend. Only verified members can receive digital ID card emails.
+
+- **Method**: `POST`
+- **Endpoints**:
+  * `/api/v1/membership/:id/resend-email` (Where `:id` is the member MongoDB ObjectId or receipt number e.g. `ACES-2026-TEST88`)
+  * `/api/v1/membership/resend-email` (Accepts `id`, `membership_no`, or `email` in body or query)
+- **Auth**: Optional
+- **Request Body (Optional for parameterized route, or provide identifiers)**:
+  ```json
+  {
+    "email": "neha.patil@college.edu"
+  }
+  ```
+- **Response (`200 OK`)**:
+  ```json
+  {
+    "success": true,
+    "data": {
+      "message": "Membership verification email with ID card resent successfully.",
+      "email": "neha.patil@college.edu",
+      "receipt_number": "ACES-2026-5501",
+      "receipt_status": "SENT",
+      "record": {
+        "id": "66bc600011223344556677bb",
+        "full_name": "Neha Patil",
+        "email": "neha.patil@college.edu",
+        "class_name": "SE",
+        "status": "VERIFIED",
+        "receipt_number": "ACES-2026-5501",
+        "receipt_status": "SENT"
+      }
+    },
+    "error": null
+  }
+  ```
+
+---
+
 ## 6. Access Control & Authority Matrix
 
 In `authorities.json`:
@@ -474,9 +577,14 @@ In `authorities.json`:
 | `/api/v1/membership` | `GET` | `*.read` | Public / All |
 | `/api/v1/membership/stats` | `GET` | `*.read` | Public / All |
 | `/api/v1/membership/:id` | `GET` | `*.read` | Public / All |
+| `/api/v1/membership/id-card/:membershipNo` | `GET` | `*.read` | Public / All (Verified only) |
+| `/api/v1/membership/sync` | `POST`, `GET` | `membership.sync` | Public / Optional Auth |
+| `/api/v1/membership/:id/resend-email` | `POST` | `membership.verify` | Public / Optional Auth (Verified only) |
 | `/api/v1/membership` | `POST` | `membership.create` | Public / Member Registration |
 | `/api/v1/membership/:id/verify` | `PATCH` | `membership.verify` | `admin`, `treasury_team`, `web_team`, `leader` |
 | `/api/v1/membership/:id` | `PUT` | `membership.update` | `admin`, `treasury_team`, `web_team`, `leader` |
 | `/api/v1/membership/:id` | `DELETE` | `membership.delete` | `admin`, `treasury_team`, `web_team`, `leader` |
 | `/api/v1/membership/bulk-import` | `POST` | `membership.import` | `admin`, `treasury_team`, `web_team`, `leader` |
 | `/api/v1/membership/import-local-sheet` | `POST` | `membership.import` | `admin`, `treasury_team`, `web_team`, `leader` |
+
+

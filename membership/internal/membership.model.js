@@ -41,9 +41,9 @@ const membershipSchema = new mongoose.Schema(
     },
     contact_number: {
       type: String,
-      required: [true, 'Contact / WhatsApp number is required'],
       trim: true,
       index: true,
+      default: '',
     },
     payment_mode: {
       type: String,
@@ -121,6 +121,55 @@ const membershipSchema = new mongoose.Schema(
   }
 );
 
+membershipSchema.index({ email: 1 });
 membershipSchema.index({ contact_number: 1, full_name: 1 });
 
 export const MembershipModel = mongoose.model('Membership', membershipSchema);
+
+const membershipSyncMetaSchema = new mongoose.Schema(
+  {
+    key: {
+      type: String,
+      required: true,
+      unique: true,
+      default: 'membership_form_sync',
+      index: true,
+    },
+    form_id: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Form',
+      default: null,
+      index: true,
+    },
+    lastMembershipSynced: {
+      type: Date,
+      default: null,
+    },
+    last_synced_at: {
+      type: Date,
+      default: null,
+    },
+    synced_count: {
+      type: Number,
+      default: 0,
+    },
+    ignored_count: {
+      type: Number,
+      default: 0,
+    },
+  },
+  {
+    timestamps: true,
+    toJSON: {
+      transform(_doc, ret) {
+        ret.id = ret._id.toString();
+        delete ret._id;
+        delete ret.__v;
+        return ret;
+      },
+    },
+  }
+);
+
+export const MembershipSyncMetaModel = mongoose.model('MembershipSyncMeta', membershipSyncMetaSchema);
+

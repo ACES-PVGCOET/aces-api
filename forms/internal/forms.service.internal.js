@@ -484,7 +484,7 @@ export class FormsInternalService {
   /**
    * Fetch all responses for a form
    */
-  static async getFormResponses(form_id, { page, limit } = {}) {
+  static async getFormResponses(form_id, { page, limit, since, submitted_after } = {}) {
     if (!mongoose.Types.ObjectId.isValid(form_id)) {
       throw new ValidationError('Invalid form ID format.');
     }
@@ -494,14 +494,23 @@ export class FormsInternalService {
       throw new NotFoundError('Form not found.');
     }
 
-    const total = await FormResponse.countDocuments({ form_id });
+    const filter = { form_id };
+    const afterDate = since || submitted_after;
+    if (afterDate) {
+      const parsedDate = new Date(afterDate);
+      if (!isNaN(parsedDate.getTime())) {
+        filter.submitted_at = { $gt: parsedDate };
+      }
+    }
+
+    const total = await FormResponse.countDocuments(filter);
     const hasPagination = page !== undefined || limit !== undefined;
     const pageNum = Math.max(1, parseInt(page, 10) || 1);
     const limitNum = hasPagination
       ? Math.max(1, Math.min(100, parseInt(limit, 10) || 10))
       : 0;
 
-    let dbQuery = FormResponse.find({ form_id }).sort({ submitted_at: -1 });
+    let dbQuery = FormResponse.find(filter).sort({ submitted_at: -1 });
     if (limitNum > 0) {
       const skip = (pageNum - 1) * limitNum;
       dbQuery = dbQuery.skip(skip).limit(limitNum);
