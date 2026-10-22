@@ -18,6 +18,7 @@ export const MembershipService = {
   bulkImport: MembershipInternalService.bulkImport.bind(MembershipInternalService),
   importFromLocalExcel: MembershipInternalService.importFromLocalExcel.bind(MembershipInternalService),
   getStatistics: MembershipInternalService.getStatistics.bind(MembershipInternalService),
+  getSyncStatus: MembershipInternalService.getSyncStatus.bind(MembershipInternalService),
   syncFromForm: MembershipInternalService.syncFromForm.bind(MembershipInternalService),
   resendMembershipEmail: MembershipInternalService.resendMembershipEmail.bind(MembershipInternalService),
 };

@@ -29,6 +29,7 @@ router.post(
 );
 
 // Sync from Forms API
+router.get('/sync-status', optionalAuthenticate, controller.getSyncStatus);
 router.post('/sync', optionalAuthenticate, controller.syncMemberships);
 router.get('/sync', optionalAuthenticate, controller.syncMemberships);
 

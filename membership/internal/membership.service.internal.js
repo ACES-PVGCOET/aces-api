@@ -122,6 +122,8 @@ export class MembershipInternalService {
       limit: limitNum,
       totalPages: Math.ceil(total / limitNum) || 1,
       stats,
+      lastMembershipSynced: stats?.lastMembershipSynced || null,
+      lastSyncedAt: stats?.lastSyncedAt || null,
     };
   }
 
@@ -511,7 +513,19 @@ with zipfile.ZipFile(file_path) as z:
    * Get high-level summary statistics
    */
   static async getStatistics() {
-    const [total, pending, verified, rejected, classesAgg, modesAgg, totalAmountAgg] = await Promise.all([
+    const defaultFormId = process.env.MEMBERSHIP_FORM_ID;
+    const syncQuery =
+      defaultFormId && mongoose.Types.ObjectId.isValid(String(defaultFormId).trim())
+        ? {
+            $or: [
+              { form_id: String(defaultFormId).trim() },
+              { key: `form_sync_${String(defaultFormId).trim()}` },
+              { key: 'membership_form_sync' },
+            ],
+          }
+        : {};
+
+    const [total, pending, verified, rejected, classesAgg, modesAgg, totalAmountAgg, syncMeta] = await Promise.all([
       MembershipModel.countDocuments(),
       MembershipModel.countDocuments({ status: MEMBERSHIP_STATUS.PENDING }),
       MembershipModel.countDocuments({ status: MEMBERSHIP_STATUS.VERIFIED }),
@@ -526,6 +540,7 @@ with zipfile.ZipFile(file_path) as z:
         { $match: { status: MEMBERSHIP_STATUS.VERIFIED } },
         { $group: { _id: null, totalCollected: { $sum: '$amount' } } },
       ]),
+      MembershipSyncMetaModel.findOne(syncQuery).sort({ updatedAt: -1 }),
     ]);
 
     const byClass = {};
@@ -548,6 +563,37 @@ with zipfile.ZipFile(file_path) as z:
       byClass,
       byMode,
       totalCollected,
+      lastMembershipSynced: syncMeta?.lastMembershipSynced || syncMeta?.last_synced_at || null,
+      lastSyncedAt: syncMeta?.last_synced_at || syncMeta?.lastMembershipSynced || null,
+    };
+  }
+
+  /**
+   * Get sync metadata and last synced timestamp
+   */
+  static async getSyncStatus(formIdInput = null) {
+    const formId = formIdInput || process.env.MEMBERSHIP_FORM_ID;
+    const cleanFormId = formId && String(formId).trim();
+    const query =
+      cleanFormId && mongoose.Types.ObjectId.isValid(cleanFormId)
+        ? {
+            $or: [
+              { form_id: cleanFormId },
+              { key: `form_sync_${cleanFormId}` },
+              { key: 'membership_form_sync' },
+            ],
+          }
+        : {};
+
+    const syncMeta = await MembershipSyncMetaModel.findOne(query).sort({ updatedAt: -1 });
+
+    return {
+      form_id: cleanFormId || syncMeta?.form_id || null,
+      lastMembershipSynced: syncMeta?.lastMembershipSynced || null,
+      last_synced_at: syncMeta?.last_synced_at || null,
+      lastSyncedAt: syncMeta?.last_synced_at || syncMeta?.lastMembershipSynced || null,
+      synced_count: syncMeta?.synced_count || 0,
+      ignored_count: syncMeta?.ignored_count || 0,
     };
   }
 

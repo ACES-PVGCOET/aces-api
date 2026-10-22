@@ -125,6 +125,16 @@ export const getIdCard = async (req, res, next) => {
   }
 };
 
+export const getSyncStatus = async (req, res, next) => {
+  try {
+    const formId = req.query?.form_id || req.body?.form_id || process.env.MEMBERSHIP_FORM_ID;
+    const status = await MembershipInternalService.getSyncStatus(formId);
+    return sendSuccess(res, status);
+  } catch (error) {
+    next(error);
+  }
+};
+
 export const syncMemberships = async (req, res, next) => {
   try {
     const formId = req.body?.form_id || req.query?.form_id || process.env.MEMBERSHIP_FORM_ID;
