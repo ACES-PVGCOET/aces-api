@@ -74,8 +74,15 @@ export const updateMembership = async (req, res, next) => {
 
 export const deleteMembership = async (req, res, next) => {
   try {
-    const { id } = req.params;
-    const result = await MembershipInternalService.deleteMembership(id);
+    const identifier =
+      req.params.id ||
+      req.body?.id ||
+      req.body?.membership_no ||
+      req.body?.email ||
+      req.query?.id ||
+      req.query?.membership_no ||
+      req.query?.email;
+    const result = await MembershipInternalService.deleteMembership(identifier);
     return sendSuccess(res, result);
   } catch (error) {
     next(error);
@@ -117,3 +124,32 @@ export const getIdCard = async (req, res, next) => {
     next(error);
   }
 };
+
+export const syncMemberships = async (req, res, next) => {
+  try {
+    const formId = req.body?.form_id || req.query?.form_id || process.env.MEMBERSHIP_FORM_ID;
+    const result = await MembershipInternalService.syncFromForm(formId);
+    return sendSuccess(res, result);
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const resendMembershipEmail = async (req, res, next) => {
+  try {
+    const identifier =
+      req.params.id ||
+      req.body?.id ||
+      req.body?.membership_no ||
+      req.body?.email ||
+      req.query?.id ||
+      req.query?.membership_no ||
+      req.query?.email;
+    const result = await MembershipInternalService.resendMembershipEmail(identifier);
+    return sendSuccess(res, result);
+  } catch (error) {
+    next(error);
+  }
+};
+
+

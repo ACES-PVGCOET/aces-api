@@ -44,7 +44,7 @@ export const FormsService = {
   /**
    * Gets all responses for a form
    */
-  getFormResponses: (formId) => FormsInternalService.getFormResponses(formId),
+  getFormResponses: (formId, options) => FormsInternalService.getFormResponses(formId, options),
 
   /**
    * Gets single response by ID
