@@ -6,15 +6,15 @@ Comprehensive API specifications and developer reference documentation for the *
 
 ## 1. Overview & Architecture
 
-The **Forms Module** (`forms/`) provides dynamic form management, schema validation, serial-ordered question structures (textual, multiple choice, file upload), public/authenticated response submissions, and response aggregation.
+The **Forms Module** (`forms/`) provides dynamic form management, schema validation, serial-ordered question structures (textual, multiple choice, file upload, single-fee payment acceptance, and itemized payment checkout), public/authenticated response submissions, and response aggregation.
 
 ### Architectural Boundaries & Encapsulation
-* **Public Service Interface ([`forms/index.js`](file:///home/yashj/cross-root/aces/aces_api/forms/index.js))**: Exports `FormsService` for inter-module programmatic calls (e.g. event registration forms in the `events` module) and orchestration workflows.
-* **HTTP Layer ([`forms/http/`](file:///home/yashj/cross-root/aces/aces_api/forms/http))**: Defines Express routes ([`forms.routes.js`](file:///home/yashj/cross-root/aces/aces_api/forms/http/forms.routes.js)) and HTTP controller handlers ([`forms.controller.js`](file:///home/yashj/cross-root/aces/aces_api/forms/http/forms.controller.js)).
-* **Internal Layer ([`forms/internal/`](file:///home/yashj/cross-root/aces/aces_api/forms/internal))**: Contains Mongoose models for forms ([`form.model.js`](file:///home/yashj/cross-root/aces/aces_api/forms/internal/form.model.js)), questions ([`question.model.js`](file:///home/yashj/cross-root/aces/aces_api/forms/internal/question.model.js)), responses ([`response.model.js`](file:///home/yashj/cross-root/aces/aces_api/forms/internal/response.model.js)), and business logic ([`forms.service.internal.js`](file:///home/yashj/cross-root/aces/aces_api/forms/internal/forms.service.internal.js)).
+* **Public Service Interface ([`forms/index.js`](file:///home/yashj/cross-root/aces/cms/aces_api/forms/index.js))**: Exports `FormsService` for inter-module programmatic calls (e.g. event registration forms in the `events` module) and orchestration workflows.
+* **HTTP Layer ([`forms/http/`](file:///home/yashj/cross-root/aces/cms/aces_api/forms/http))**: Defines Express routes ([`forms.routes.js`](file:///home/yashj/cross-root/aces/cms/aces_api/forms/http/forms.routes.js)) and HTTP controller handlers ([`forms.controller.js`](file:///home/yashj/cross-root/aces/cms/aces_api/forms/http/forms.controller.js)).
+* **Internal Layer ([`forms/internal/`](file:///home/yashj/cross-root/aces/cms/aces_api/forms/internal))**: Contains Mongoose models for forms ([`form.model.js`](file:///home/yashj/cross-root/aces/cms/aces_api/forms/internal/form.model.js)), questions ([`question.model.js`](file:///home/yashj/cross-root/aces/cms/aces_api/forms/internal/question.model.js)), responses ([`response.model.js`](file:///home/yashj/cross-root/aces/cms/aces_api/forms/internal/response.model.js)), and business logic ([`forms.service.internal.js`](file:///home/yashj/cross-root/aces/cms/aces_api/forms/internal/forms.service.internal.js)).
 
 > [!IMPORTANT]
-> External modules must interact with Forms only via `FormsService` exported in [`forms/index.js`](file:///home/yashj/cross-root/aces/aces_api/forms/index.js). Direct imports from `forms/internal/*` are strictly forbidden.
+> External modules must interact with Forms only via `FormsService` exported in [`forms/index.js`](file:///home/yashj/cross-root/aces/cms/aces_api/forms/index.js). Direct imports from `forms/internal/*` are strictly forbidden.
 
 ---
 
@@ -77,6 +77,8 @@ The **Forms Module** (`forms/`) provides dynamic form management, schema validat
   "title": "ACES Annual Hackathon Registration",
   "description": "Registration form for team applications and track selection.",
   "is_active": true,
+  "whatsapp_group_link": "https://chat.whatsapp.com/sampleInviteLink",
+  "whatsapp_qr_code": "https://res.cloudinary.com/aces/image/upload/v1/whatsapp_qr.png",
   "question_ids": [
     "66b64f9e1234567890aaaa01",
     "66b64f9e1234567890aaaa02"
@@ -95,6 +97,8 @@ The **Forms Module** (`forms/`) provides dynamic form management, schema validat
 | `title` | String | Yes | Title of the form (trimmed). |
 | `description` | String | No | Detailed instructions or context (default: `""`). |
 | `is_active` | Boolean | No | Indicates whether form accepts responses (default: `true`). |
+| `whatsapp_group_link` | String | No | Optional WhatsApp community or team group link (default: `""`). |
+| `whatsapp_qr_code` | String | No | Optional Cloudinary URL to WhatsApp group join QR code (default: `""`). |
 | `question_ids` | Array[ObjectId] | No | Array of associated Question document IDs. |
 | `created_by` | String (ObjectId) | No | Member ID of creator. |
 | `updated_by` | String (ObjectId) | No | Member ID of last editor. |
@@ -108,9 +112,10 @@ The **Forms Module** (`forms/`) provides dynamic form management, schema validat
   "question_id": "66b64f9e1234567890aaaa01",
   "form_id": "66b64f9e1234567890abcdef",
   "question_serial": 1,
-  "question_statement": "Select your domain track",
-  "question_type": "multiple_choice",
+  "question_statement": "Select items you wish to pay for and scan QR code",
+  "question_type": "payment_checkout",
   "is_required": true,
+  "image_url": "https://res.cloudinary.com/aces/image/upload/v1/merch_preview.png",
   "textual_policy": {
     "max_len": 500
   },
@@ -126,6 +131,15 @@ The **Forms Module** (`forms/`) provides dynamic form management, schema validat
     "amount": 250,
     "primary_qr_url": "https://res.cloudinary.com/aces/image/upload/v1/qr_primary.png",
     "fallback_qr_url": "https://res.cloudinary.com/aces/image/upload/v1/qr_fallback.png"
+  },
+  "payment_checkout_policy": {
+    "items": [
+      { "title": "Delegate Pass", "cost": 150 },
+      { "title": "ACES Official T-Shirt", "cost": 350 },
+      { "title": "Networking Dinner Voucher", "cost": 200 }
+    ],
+    "primary_qr_url": "https://res.cloudinary.com/aces/image/upload/v1/qr_primary.png",
+    "fallback_qr_url": "https://res.cloudinary.com/aces/image/upload/v1/qr_fallback.png"
   }
 }
 ```
@@ -136,17 +150,39 @@ The **Forms Module** (`forms/`) provides dynamic form management, schema validat
 | `question_id` | String (ObjectId) | Yes | | Unique identifier for question. |
 | `form_id` | String (ObjectId) | Yes | | Parent form ID (indexed). |
 | `question_serial` | Number | Yes | Positive integer | Order serial within form (compound unique index with `form_id`). |
-| `question_statement` | String | Yes | | Prompt text for question (auto-generated for `payment_acceptance`). |
-| `question_type` | String | Yes | `['textual', 'multiple_choice', 'file', 'payment_acceptance']` | Type of question response input. |
-| `is_required` | Boolean | No | Default: `true` | Enforces mandatory submission (defaults `true` for `payment_acceptance`). |
+| `question_statement` | String | Yes | | Prompt text for question (auto-generated for `payment_acceptance` and `payment_checkout` if omitted). |
+| `question_type` | String | Yes | `['textual', 'multiple_choice', 'file', 'payment_acceptance', 'payment_checkout']` | Type of question response input. |
+| `is_required` | Boolean | No | Default: `true` | Enforces mandatory submission (defaults `true` for `payment_acceptance` and `payment_checkout`). |
+| `image_url` | String | No | Image URL | Optional banner/prompt illustration image URL displayed above question. |
 | `textual_policy.max_len` | Number | No | Default: `500` | Character limit for textual answers. |
 | `multiple_choice_policy.type` | String | No | `['Single', 'Multiple']` | Choice selection constraint. |
 | `multiple_choice_policy.options` | Array[String] | No | | Allowed choices list. |
 | `file_policy.supported_types` | Array[String] | No | e.g. `["pdf", "png"]` | Permitted file extensions. |
 | `file_policy.max_size_mb` | Number | No | Default: `5` | Max file upload limit in MB. |
-| `payment_policy.amount` | Number | Conditional | Positive number (`> 0`) | Payment fee amount (Required for `payment_acceptance`). |
+| `payment_policy.amount` | Number | Conditional | Positive number (`> 0`) | Fixed payment fee amount (Required for `payment_acceptance`). |
 | `payment_policy.primary_qr_url` | String | Conditional | Image URL | Primary UPI / Payment QR code (Required for `payment_acceptance`). |
 | `payment_policy.fallback_qr_url` | String | No | Image URL | Optional secondary/fallback QR code. |
+| `payment_checkout_policy.items` | Array[Object] | Conditional | Min 1 item | List of purchasable cart items (Required for `payment_checkout`). |
+| `payment_checkout_policy.items[].title` | String | Conditional | Non-empty string | Name or label of checkout item (Required for each item). |
+| `payment_checkout_policy.items[].cost` | Number | Conditional | Number (`>= 0`) | Unit cost in INR for checkout item (Required for each item). |
+| `payment_checkout_policy.primary_qr_url` | String | Conditional | Image URL | Primary UPI / Payment QR code (Required for `payment_checkout`). |
+| `payment_checkout_policy.fallback_qr_url` | String | No | Image URL | Optional secondary/fallback QR code for `payment_checkout`. |
+
+---
+
+### 3.2.1 Question Types Comparison: Payment Acceptance vs Payment Checkout
+
+| Aspect | `payment_acceptance` | `payment_checkout` |
+| :--- | :--- | :--- |
+| **Model** | Fixed single-amount fee. | Dynamic multi-item selectable cart. |
+| **Use Cases** | Membership dues, event entry fees, standard registrations. | Event merchandise, workshops, add-on meals, tiered pass selection. |
+| **Policy Field** | `payment_policy: { amount, primary_qr_url, fallback_qr_url }` | `payment_checkout_policy: { items: [{ title, cost }], primary_qr_url, fallback_qr_url }` |
+| **Pricing** | Fixed `amount > 0` set by form admin. | Array of items with individual `cost >= 0`. Total calculated dynamically: `total = sum(selected.cost)`. |
+| **Auto-generated Statement** | `"Please pay ₹{amount} using one of the following QR codes and upload your payment confirmation screenshot..."` | `"Select the items you wish to pay for below. Scan the QR code to complete your payment, then upload your payment confirmation screenshot."` |
+| **Response Format** | Screenshot proof URL array: `["https://res.cloudinary.com/.../screenshot.png"]` | Screenshot proof URL array: `["https://res.cloudinary.com/.../screenshot.png"]` |
+| **Validation** | Requires `amount > 0` and `primary_qr_url`. | Requires at least 1 item with non-empty `title`, `cost >= 0`, and `primary_qr_url`. |
+
+---
 
 ---
 
@@ -180,6 +216,8 @@ The **Forms Module** (`forms/`) provides dynamic form management, schema validat
   {
     "title": "ACES Annual Hackathon Registration",
     "description": "Please fill out your team registration details.",
+    "whatsapp_group_link": "https://chat.whatsapp.com/sampleInviteLink",
+    "whatsapp_qr_code": "https://res.cloudinary.com/aces/image/upload/v1/whatsapp_qr.png",
     "questions": [
       {
         "question_serial": 1,
@@ -207,6 +245,22 @@ The **Forms Module** (`forms/`) provides dynamic form management, schema validat
           "supported_types": ["pdf"],
           "max_size_mb": 10
         }
+      },
+      {
+        "question_serial": 4,
+        "question_statement": "Select items you wish to pay for and scan QR code",
+        "question_type": "payment_checkout",
+        "is_required": true,
+        "image_url": "https://res.cloudinary.com/aces/image/upload/v1/event_merch_banner.png",
+        "payment_checkout_policy": {
+          "items": [
+            { "title": "Delegate Pass", "cost": 150 },
+            { "title": "ACES Official T-Shirt", "cost": 350 },
+            { "title": "Networking Dinner Voucher", "cost": 200 }
+          ],
+          "primary_qr_url": "https://res.cloudinary.com/aces/image/upload/v1/qr_primary.png",
+          "fallback_qr_url": "https://res.cloudinary.com/aces/image/upload/v1/qr_fallback.png"
+        }
       }
     ]
   }
@@ -219,14 +273,22 @@ The **Forms Module** (`forms/`) provides dynamic form management, schema validat
       "form_id": "66b64f9e1234567890abcdef",
       "title": "ACES Annual Hackathon Registration",
       "description": "Please fill out your team registration details.",
-      "question_count": 3,
+      "question_count": 4,
       "created_at": "2026-08-10T10:00:00.000Z"
     },
     "error": null
   }
   ```
 * **Error Scenarios:**
-  - `400 Bad Request` (`INVALID_INPUT`): Title missing, empty questions array, duplicate `question_serial`, or invalid `question_type`.
+  - `400 Bad Request` (`INVALID_INPUT`):
+    - Title missing or empty.
+    - Empty `questions` array.
+    - Duplicate `question_serial`.
+    - Invalid `question_type` (must be one of: `textual`, `multiple_choice`, `file`, `payment_acceptance`, `payment_checkout`).
+    - Missing `amount` (`> 0`) or missing `primary_qr_url` for `payment_acceptance`.
+    - Empty or missing `items` array for `payment_checkout` (minimum 1 item required).
+    - Missing item `title` or invalid `cost` (`< 0` or non-numeric) in `payment_checkout_policy.items`.
+    - Missing `primary_qr_url` for `payment_checkout`.
 
 ---
 
@@ -252,7 +314,7 @@ The **Forms Module** (`forms/`) provides dynamic form management, schema validat
           "title": "ACES Annual Hackathon Registration",
           "description": "Please fill out your team registration details.",
           "is_active": true,
-          "question_count": 3,
+          "question_count": 4,
           "created_at": "2026-08-10T10:00:00.000Z"
         }
       ],
@@ -282,6 +344,8 @@ The **Forms Module** (`forms/`) provides dynamic form management, schema validat
       "title": "ACES Annual Hackathon Registration",
       "description": "Please fill out your team registration details.",
       "is_active": true,
+      "whatsapp_group_link": "https://chat.whatsapp.com/sampleInviteLink",
+      "whatsapp_qr_code": "https://res.cloudinary.com/aces/image/upload/v1/whatsapp_qr.png",
       "questions": [
         {
           "question_id": "66b64f9e1234567890aaaa01",
@@ -289,9 +353,27 @@ The **Forms Module** (`forms/`) provides dynamic form management, schema validat
           "question_statement": "What is your team name?",
           "question_type": "textual",
           "is_required": true,
+          "image_url": "",
           "textual_policy": { "max_len": 100 },
           "multiple_choice_policy": { "type": "Single", "options": [] },
           "file_policy": { "supported_types": [], "max_size_mb": 5 }
+        },
+        {
+          "question_id": "66b64f9e1234567890aaaa04",
+          "question_serial": 4,
+          "question_statement": "Select items you wish to pay for and scan QR code",
+          "question_type": "payment_checkout",
+          "is_required": true,
+          "image_url": "https://res.cloudinary.com/aces/image/upload/v1/event_merch_banner.png",
+          "payment_checkout_policy": {
+            "items": [
+              { "title": "Delegate Pass", "cost": 150 },
+              { "title": "ACES Official T-Shirt", "cost": 350 },
+              { "title": "Networking Dinner Voucher", "cost": 200 }
+            ],
+            "primary_qr_url": "https://res.cloudinary.com/aces/image/upload/v1/qr_primary.png",
+            "fallback_qr_url": "https://res.cloudinary.com/aces/image/upload/v1/qr_fallback.png"
+          }
         }
       ],
       "created_at": "2026-08-10T10:00:00.000Z",
@@ -352,10 +434,15 @@ The **Forms Module** (`forms/`) provides dynamic form management, schema validat
     "answers": {
       "1": ["Binary Beasts"],
       "2": ["AI/ML"],
-      "3": ["https://res.cloudinary.com/aces/raw/upload/v123/proposal.pdf"]
+      "3": ["https://res.cloudinary.com/aces/raw/upload/v123/proposal.pdf"],
+      "4": ["https://res.cloudinary.com/aces/image/upload/v123/payment_receipt_proof.png"]
     }
   }
   ```
+* **Response Submission Specifications for `payment_checkout`:**
+  - Form fillers make their item selections, calculate their order total (`totalDue`), and complete payment via UPI using either the `primary_qr_url` or `fallback_qr_url`.
+  - The payment confirmation / transaction screenshot is uploaded to Cloudinary (image or PDF, max 10MB).
+  - The resulting Cloudinary URL is submitted under the question serial key: `answers["<serial>"] = ["<cloudinary_url>"]`.
 * **Success Response (`201 Created`):**
   ```json
   {
@@ -364,6 +451,8 @@ The **Forms Module** (`forms/`) provides dynamic form management, schema validat
       "response_id": "66b64f9e1234567890resp01",
       "form_id": "66b64f9e1234567890abcdef",
       "email": "filler@example.com",
+      "whatsapp_group_link": "https://chat.whatsapp.com/sampleInviteLink",
+      "whatsapp_qr_code": "https://res.cloudinary.com/aces/image/upload/v1/whatsapp_qr.png",
       "submitted_at": "2026-08-10T12:30:00.000Z"
     },
     "error": null
@@ -378,6 +467,7 @@ The **Forms Module** (`forms/`) provides dynamic form management, schema validat
     - Textual answer exceeds `max_len`.
     - Multiple choice selection invalid or selecting multiple options when `Single` is required.
     - File extension not supported in `supported_types`.
+    - Missing or invalid payment screenshot URL for required `payment_acceptance` or `payment_checkout` questions.
 
 ---
 
@@ -408,7 +498,7 @@ The **Forms Module** (`forms/`) provides dynamic form management, schema validat
 
 ---
 
-### 4.7 Get All Responses for Form
+### 4.8 Get All Responses for Form
 * **Method:** `GET`
 * **Endpoint:** `/api/v1/forms/:form_id/responses`
 * **Auth Required:** Yes
@@ -428,7 +518,8 @@ The **Forms Module** (`forms/`) provides dynamic form management, schema validat
           "member_id": "66b64f9e1234567890user01",
           "answers": {
             "1": ["Binary Beasts"],
-            "2": ["AI/ML"]
+            "2": ["AI/ML"],
+            "4": ["https://res.cloudinary.com/aces/image/upload/v123/payment_receipt_proof.png"]
           },
           "submitted_at": "2026-08-10T12:30:00.000Z"
         }
@@ -440,7 +531,7 @@ The **Forms Module** (`forms/`) provides dynamic form management, schema validat
 
 ---
 
-### 4.8 Get Single Form Response
+### 4.9 Get Single Form Response
 * **Method:** `GET`
 * **Endpoint:** `/api/v1/forms/:form_id/responses/:response_id`
 * **Auth Required:** Yes
@@ -455,7 +546,8 @@ The **Forms Module** (`forms/`) provides dynamic form management, schema validat
       "member_id": "66b64f9e1234567890user01",
       "answers": {
         "1": ["Binary Beasts"],
-        "2": ["AI/ML"]
+        "2": ["AI/ML"],
+        "4": ["https://res.cloudinary.com/aces/image/upload/v123/payment_receipt_proof.png"]
       },
       "submitted_at": "2026-08-10T12:30:00.000Z"
     },
@@ -467,7 +559,7 @@ The **Forms Module** (`forms/`) provides dynamic form management, schema validat
 
 ## 5. Public Service Interface Reference
 
-Inter-module calls within the ACES API platform must import `FormsService` from [`forms/index.js`](file:///home/yashj/cross-root/aces/aces_api/forms/index.js).
+Inter-module calls within the ACES API platform must import `FormsService` from [`forms/index.js`](file:///home/yashj/cross-root/aces/cms/aces_api/forms/index.js).
 
 ```js
 import { FormsService } from './forms/index.js';
