@@ -20,7 +20,7 @@ const questionSchema = new mongoose.Schema(
     question_type: {
       type: String,
       required: true,
-      enum: ['textual', 'multiple_choice', 'file', 'payment_acceptance'],
+      enum: ['textual', 'multiple_choice', 'file', 'payment_acceptance', 'payment_checkout'],
     },
     is_required: {
       type: Boolean,
@@ -67,6 +67,31 @@ const questionSchema = new mongoose.Schema(
         type: Number,
         min: 0,
       },
+      primary_qr_url: {
+        type: String,
+        trim: true,
+        default: '',
+      },
+      fallback_qr_url: {
+        type: String,
+        trim: true,
+        default: '',
+      },
+    },
+    payment_checkout_policy: {
+      items: [
+        {
+          title: {
+            type: String,
+            trim: true,
+          },
+          cost: {
+            type: Number,
+            min: 0,
+            default: 0,
+          },
+        },
+      ],
       primary_qr_url: {
         type: String,
         trim: true,
