@@ -26,12 +26,13 @@ export class FormsInternalService {
       serialSet.add(serial);
 
       const rawType = q.question_type ? String(q.question_type).trim().toLowerCase() : '';
-      if (!['textual', 'multiple_choice', 'file', 'payment_acceptance'].includes(rawType)) {
+      if (!['textual', 'multiple_choice', 'file', 'payment_acceptance', 'payment_checkout'].includes(rawType)) {
         throw new ValidationError(`Invalid question_type '${q.question_type}' for serial ${serial}.`);
       }
 
       let statement = q.question_statement && typeof q.question_statement === 'string' ? q.question_statement.trim() : '';
       let paymentPolicy = null;
+      let paymentCheckoutPolicy = null;
 
       if (rawType === 'payment_acceptance') {
         const policy = q.payment_policy || {};
@@ -56,6 +57,45 @@ export class FormsInternalService {
 
         paymentPolicy = {
           amount,
+          primary_qr_url: primaryQr,
+          fallback_qr_url: fallbackQr,
+        };
+      } else if (rawType === 'payment_checkout') {
+        const policy = q.payment_checkout_policy || {};
+        const rawItems = Array.isArray(policy.items) ? policy.items : [];
+
+        if (rawItems.length === 0) {
+          throw new ValidationError(`At least one checkout item is required for payment checkout question serial ${serial}.`);
+        }
+
+        const validatedItems = rawItems.map((item, itemIdx) => {
+          const title = item.title ? String(item.title).trim() : '';
+          if (!title) {
+            throw new ValidationError(`Checkout item #${itemIdx + 1} must have a title for question serial ${serial}.`);
+          }
+          const cost = Number(item.cost);
+          if (isNaN(cost) || cost < 0) {
+            throw new ValidationError(`Checkout item "${title}" must have a valid non-negative cost for question serial ${serial}.`);
+          }
+          return { title, cost };
+        });
+
+        const primaryQr = policy.primary_qr_url ? String(policy.primary_qr_url).trim() : '';
+        if (!primaryQr) {
+          throw new ValidationError(`Primary QR code image is required for payment checkout question serial ${serial}.`);
+        }
+
+        const fallbackQr = policy.fallback_qr_url ? String(policy.fallback_qr_url).trim() : '';
+
+        // Auto-generate statement if not provided
+        if (!statement) {
+          statement = fallbackQr
+            ? `Select the items you wish to pay for below. Scan one of the QR codes to complete your payment, then upload your payment confirmation screenshot.`
+            : `Select the items you wish to pay for below. Scan the QR code to complete your payment, then upload your payment confirmation screenshot.`;
+        }
+
+        paymentCheckoutPolicy = {
+          items: validatedItems,
           primary_qr_url: primaryQr,
           fallback_qr_url: fallbackQr,
         };
@@ -85,6 +125,11 @@ export class FormsInternalService {
         },
         payment_policy: paymentPolicy || {
           amount: 0,
+          primary_qr_url: '',
+          fallback_qr_url: '',
+        },
+        payment_checkout_policy: paymentCheckoutPolicy || {
+          items: [],
           primary_qr_url: '',
           fallback_qr_url: '',
         },
@@ -157,7 +202,7 @@ export class FormsInternalService {
 
     const questions = await Question.find({ form_id }).sort({ question_serial: 1 }).lean();
 
-    const formattedQuestions = questions.map((q) => ({
+      const formattedQuestions = questions.map((q) => ({
       question_id: q._id,
       question_serial: q.question_serial,
       question_statement: q.question_statement,
@@ -168,6 +213,7 @@ export class FormsInternalService {
       multiple_choice_policy: q.multiple_choice_policy,
       file_policy: q.file_policy,
       payment_policy: q.payment_policy,
+      payment_checkout_policy: q.payment_checkout_policy,
     }));
 
     return {
@@ -413,6 +459,21 @@ export class FormsInternalService {
             if (!fileUrl || typeof fileUrl !== 'string' || !fileUrl.trim()) {
               throw new ValidationError(
                 `Payment confirmation screenshot is required for question serial ${question.question_serial}.`
+              );
+            }
+            const trimmed = fileUrl.trim();
+            const isUrl = /^https?:\/\/.+/i.test(trimmed);
+            if (!isUrl) {
+              throw new ValidationError(
+                `Question serial ${question.question_serial} requires a valid payment screenshot URL.`
+              );
+            }
+          }
+        } else if (question.question_type === 'payment_checkout') {
+          for (const fileUrl of answerArray) {
+            if (!fileUrl || typeof fileUrl !== 'string' || !fileUrl.trim()) {
+              throw new ValidationError(
+                `Payment confirmation screenshot is required for payment checkout question serial ${question.question_serial}.`
               );
             }
             const trimmed = fileUrl.trim();
