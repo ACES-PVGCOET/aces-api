@@ -931,4 +931,145 @@ describe('Forms Module API Tests', () => {
       assert.deepEqual(getRespRes.body.data.responses[0].answers['1'], [validScreenshotUrl]);
     });
   });
+
+  describe('PAYMENT_CHECKOUT Question Type Tests', () => {
+    it('should validate form creation with payment_checkout policy', async () => {
+      const res = await request('/api/v1/forms', {
+        method: 'POST',
+        token: eventTeamToken,
+        body: {
+          title: 'ACES Merchandise & Passes',
+          questions: [
+            {
+              question_serial: 1,
+              question_type: 'payment_checkout',
+              payment_checkout_policy: {
+                items: [
+                  { title: 'ACES Annual Pass', cost: 300 },
+                  { title: 'Workshop Kit', cost: 150 },
+                ],
+                primary_qr_url: 'https://res.cloudinary.com/aces/image/upload/v1/primary_qr.png',
+                fallback_qr_url: 'https://res.cloudinary.com/aces/image/upload/v1/fallback_qr.png',
+              },
+            },
+          ],
+        },
+      });
+
+      assert.equal(res.status, 201);
+      const formId = res.body.data.form_id;
+
+      const getRes = await request(`/api/v1/forms/${formId}`);
+      assert.equal(getRes.status, 200);
+      const q = getRes.body.data.questions[0];
+      assert.equal(q.question_type, 'payment_checkout');
+      assert.equal(q.payment_checkout_policy.items.length, 2);
+      assert.equal(q.payment_checkout_policy.items[0].title, 'ACES Annual Pass');
+      assert.equal(q.payment_checkout_policy.items[0].cost, 300);
+    });
+
+    it('should validate response submission for payment_checkout, recording selected items and screenshot', async () => {
+      const formRes = await request('/api/v1/forms', {
+        method: 'POST',
+        token: eventTeamToken,
+        body: {
+          title: 'Store Checkout Form',
+          questions: [
+            {
+              question_serial: 1,
+              question_type: 'payment_checkout',
+              payment_checkout_policy: {
+                items: [
+                  { title: 'T-Shirt', cost: 250 },
+                  { title: 'Sticker Pack', cost: 50 },
+                ],
+                primary_qr_url: 'https://res.cloudinary.com/aces/image/upload/v1/qr.png',
+              },
+            },
+          ],
+        },
+      });
+      const formId = formRes.body.data.form_id;
+
+      // 1. Submit without selecting items -> should fail
+      const noItemsRes = await request(`/api/v1/forms/${formId}/responses`, {
+        method: 'POST',
+        body: {
+          email: 'buyer1@example.com',
+          answers: { '1': ['https://res.cloudinary.com/aces/image/upload/v1/proof.png'] },
+        },
+      });
+      assert.equal(noItemsRes.status, 400);
+      assert.match(noItemsRes.body.error.message, /select at least one checkout item/i);
+
+      // 2. Submit with selected items but no screenshot -> should fail
+      const noScreenshotRes = await request(`/api/v1/forms/${formId}/responses`, {
+        method: 'POST',
+        body: {
+          email: 'buyer2@example.com',
+          answers: { '1': ['T-Shirt'] },
+        },
+      });
+      assert.equal(noScreenshotRes.status, 400);
+      assert.match(noScreenshotRes.body.error.message, /payment confirmation screenshot is required/i);
+
+      // 3. Submit with invalid item title -> should fail
+      const invalidItemRes = await request(`/api/v1/forms/${formId}/responses`, {
+        method: 'POST',
+        body: {
+          email: 'buyer3@example.com',
+          answers: {
+            '1': ['Non-Existent Item', 'https://res.cloudinary.com/aces/image/upload/v1/proof.png'],
+          },
+        },
+      });
+      assert.equal(invalidItemRes.status, 400);
+      assert.match(invalidItemRes.body.error.message, /invalid checkout item/i);
+
+      // 4. Submit with valid selected items and screenshot URL as array -> should succeed
+      const screenshotUrl = 'https://res.cloudinary.com/aces/image/upload/v1/proof.png';
+      const validSubmitRes = await request(`/api/v1/forms/${formId}/responses`, {
+        method: 'POST',
+        body: {
+          email: 'buyer4@example.com',
+          answers: {
+            '1': ['T-Shirt', 'Sticker Pack', screenshotUrl],
+          },
+        },
+      });
+      assert.equal(validSubmitRes.status, 201);
+      assert.equal(validSubmitRes.body.success, true);
+
+      // 5. Submit with object format { items, screenshot_url } -> should also succeed
+      const validObjSubmitRes = await request(`/api/v1/forms/${formId}/responses`, {
+        method: 'POST',
+        body: {
+          email: 'buyer5@example.com',
+          answers: {
+            '1': {
+              items: ['T-Shirt'],
+              screenshot_url: screenshotUrl,
+            },
+          },
+        },
+      });
+      assert.equal(validObjSubmitRes.status, 201);
+      assert.equal(validObjSubmitRes.body.success, true);
+
+      // 6. Verify GET responses retrieves the selected items along with screenshot
+      const getRespRes = await request(`/api/v1/forms/${formId}/responses`, {
+        token: eventTeamToken,
+      });
+      assert.equal(getRespRes.status, 200);
+      assert.equal(getRespRes.body.data.responses.length, 2);
+
+      const resp1 = getRespRes.body.data.responses.find((r) => r.email === 'buyer4@example.com');
+      assert.ok(resp1);
+      assert.deepEqual(resp1.answers['1'], ['T-Shirt', 'Sticker Pack', screenshotUrl]);
+
+      const resp2 = getRespRes.body.data.responses.find((r) => r.email === 'buyer5@example.com');
+      assert.ok(resp2);
+      assert.deepEqual(resp2.answers['1'], ['T-Shirt', screenshotUrl]);
+    });
+  });
 });

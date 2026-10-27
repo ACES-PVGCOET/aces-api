@@ -402,6 +402,10 @@ export class FormsInternalService {
       let answerArray = [];
       if (Array.isArray(rawAnswer)) {
         answerArray = rawAnswer.map((val) => String(val).trim()).filter((val) => val.length > 0);
+      } else if (rawAnswer !== null && typeof rawAnswer === 'object') {
+        const itemArr = Array.isArray(rawAnswer.items) ? rawAnswer.items : [];
+        const ssUrl = rawAnswer.screenshot_url || rawAnswer.screenshot || rawAnswer.transaction_ss_url || '';
+        answerArray = [...itemArr.map((v) => String(v).trim()), String(ssUrl).trim()].filter((v) => v.length > 0);
       } else if (rawAnswer !== undefined && rawAnswer !== null && String(rawAnswer).trim() !== '') {
         answerArray = [String(rawAnswer).trim()];
       }
@@ -470,20 +474,43 @@ export class FormsInternalService {
             }
           }
         } else if (question.question_type === 'payment_checkout') {
-          for (const fileUrl of answerArray) {
-            if (!fileUrl || typeof fileUrl !== 'string' || !fileUrl.trim()) {
+          const policy = question.payment_checkout_policy || {};
+          const definedItems = policy.items || [];
+          const definedTitles = new Set(definedItems.map((it) => it.title.trim()));
+
+          const urls = answerArray.filter((val) => /^https?:\/\/.+/i.test(val));
+          const selectedItems = answerArray.filter((val) => !/^https?:\/\/.+/i.test(val));
+
+          if (question.is_required) {
+            if (selectedItems.length === 0) {
+              throw new ValidationError(
+                `Please select at least one checkout item for question serial ${question.question_serial}.`
+              );
+            }
+            if (urls.length === 0) {
               throw new ValidationError(
                 `Payment confirmation screenshot is required for payment checkout question serial ${question.question_serial}.`
               );
             }
-            const trimmed = fileUrl.trim();
-            const isUrl = /^https?:\/\/.+/i.test(trimmed);
-            if (!isUrl) {
+          } else {
+            // Optional checkout question: if items are selected, payment proof is required
+            if (selectedItems.length > 0 && urls.length === 0) {
               throw new ValidationError(
-                `Question serial ${question.question_serial} requires a valid payment screenshot URL.`
+                `Payment confirmation screenshot is required when checkout items are selected for question serial ${question.question_serial}.`
               );
             }
           }
+
+          // Validate that each selected item corresponds to an item defined in the checkout policy
+          for (const itemTitle of selectedItems) {
+            if (definedTitles.size > 0 && !definedTitles.has(itemTitle)) {
+              throw new ValidationError(
+                `Invalid checkout item '${itemTitle}' selected for question serial ${question.question_serial}. Allowed items: [${Array.from(definedTitles).join(', ')}].`
+              );
+            }
+          }
+
+          answerArray = [...selectedItems, ...urls];
         }
 
         normalizedAnswers.set(serialKey, answerArray);

@@ -442,7 +442,8 @@ The **Forms Module** (`forms/`) provides dynamic form management, schema validat
 * **Response Submission Specifications for `payment_checkout`:**
   - Form fillers make their item selections, calculate their order total (`totalDue`), and complete payment via UPI using either the `primary_qr_url` or `fallback_qr_url`.
   - The payment confirmation / transaction screenshot is uploaded to Cloudinary (image or PDF, max 10MB).
-  - The resulting Cloudinary URL is submitted under the question serial key: `answers["<serial>"] = ["<cloudinary_url>"]`.
+  - Selected item titles and the resulting Cloudinary URL are submitted together under the question serial key: `answers["<serial>"] = ["Item Title 1", "Item Title 2", "<cloudinary_url>"]` (or optionally as an object `{ "items": ["Item Title 1"], "screenshot_url": "<cloudinary_url>" }`).
+  - Responses validate that all selected items match items defined in the question's `payment_checkout_policy.items`.
 * **Success Response (`201 Created`):**
   ```json
   {
