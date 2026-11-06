@@ -48,6 +48,29 @@ const responseSchema = new mongoose.Schema(
   }
 );
 
-responseSchema.index({ form_id: 1, email: 1 }, { unique: true });
+// Non-unique compound index to optimize queries while allowing multiple responses when configured on the form
+responseSchema.index({ form_id: 1, email: 1 });
 
 export const FormResponse = mongoose.model('FormResponse', responseSchema);
+
+// If an older unique index exists on an existing database, ensure it is safely replaced with non-unique index
+if (FormResponse && typeof FormResponse.init === 'function') {
+  FormResponse.init()
+    .then(async () => {
+      try {
+        if (FormResponse.collection) {
+          const indexes = await FormResponse.collection.indexes();
+          const oldUniqueIndex = indexes.find(
+            (idx) => idx.name === 'form_id_1_email_1' && idx.unique
+          );
+          if (oldUniqueIndex) {
+            await FormResponse.collection.dropIndex('form_id_1_email_1');
+            await FormResponse.collection.createIndex({ form_id: 1, email: 1 });
+          }
+        }
+      } catch (_e) {
+        // Ignore background index sync errors
+      }
+    })
+    .catch(() => {});
+}

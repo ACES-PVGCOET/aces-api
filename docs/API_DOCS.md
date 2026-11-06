@@ -771,6 +771,8 @@ Creates a form along with structured question definitions.
       "form_id": "66bc30001122334455667799",
       "title": "Hackathon 2026 Registration Form",
       "description": "Fill out team details and track preferences.",
+      "is_active": true,
+      "allow_multiple_responses": false,
       "question_count": 3,
       "created_at": "2026-08-14T12:00:00.000Z"
     },
@@ -803,6 +805,7 @@ Creates a form along with structured question definitions.
           "title": "Hackathon 2026 Registration Form",
           "description": "Fill out team details and track preferences.",
           "is_active": true,
+          "allow_multiple_responses": false,
           "question_count": 3,
           "created_at": "2026-08-14T12:00:00.000Z"
         }
@@ -832,6 +835,7 @@ Creates a form along with structured question definitions.
       "title": "Hackathon 2026 Registration Form",
       "description": "Fill out team details and track preferences.",
       "is_active": true,
+      "allow_multiple_responses": false,
       "questions": [
         {
           "question_id": "66bc30001122334455667701",
@@ -858,7 +862,7 @@ Creates a form along with structured question definitions.
 - **Method**: `PUT`
 - **Endpoint**: `/api/v1/forms/:form_id`
 - **Auth**: Required (`forms.update` authority)
-- **Request Body Fields**: `title`, `description`, `is_active` (`true`/`false`), `questions` (optional full replacement array).
+- **Request Body Fields**: `title`, `description`, `is_active` (`true`/`false`), `allow_multiple_responses` (`true`/`false`), `questions` (optional full replacement array).
 
 ---
 

@@ -16,6 +16,10 @@ const formSchema = new mongoose.Schema(
       type: Boolean,
       default: true,
     },
+    allow_multiple_responses: {
+      type: Boolean,
+      default: false,
+    },
     whatsapp_group_link: {
       type: String,
       trim: true,

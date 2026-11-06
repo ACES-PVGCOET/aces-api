@@ -77,6 +77,7 @@ The **Forms Module** (`forms/`) provides dynamic form management, schema validat
   "title": "ACES Annual Hackathon Registration",
   "description": "Registration form for team applications and track selection.",
   "is_active": true,
+  "allow_multiple_responses": false,
   "whatsapp_group_link": "https://chat.whatsapp.com/sampleInviteLink",
   "whatsapp_qr_code": "https://res.cloudinary.com/aces/image/upload/v1/whatsapp_qr.png",
   "question_ids": [
@@ -97,6 +98,7 @@ The **Forms Module** (`forms/`) provides dynamic form management, schema validat
 | `title` | String | Yes | Title of the form (trimmed). |
 | `description` | String | No | Detailed instructions or context (default: `""`). |
 | `is_active` | Boolean | No | Indicates whether form accepts responses (default: `true`). |
+| `allow_multiple_responses` | Boolean | No | Explicit toggle to allow multiple form submissions from the same email (default: `false`). |
 | `whatsapp_group_link` | String | No | Optional WhatsApp community or team group link (default: `""`). |
 | `whatsapp_qr_code` | String | No | Optional Cloudinary URL to WhatsApp group join QR code (default: `""`). |
 | `question_ids` | Array[ObjectId] | No | Array of associated Question document IDs. |
@@ -216,6 +218,7 @@ The **Forms Module** (`forms/`) provides dynamic form management, schema validat
   {
     "title": "ACES Annual Hackathon Registration",
     "description": "Please fill out your team registration details.",
+    "allow_multiple_responses": false,
     "whatsapp_group_link": "https://chat.whatsapp.com/sampleInviteLink",
     "whatsapp_qr_code": "https://res.cloudinary.com/aces/image/upload/v1/whatsapp_qr.png",
     "questions": [
@@ -314,6 +317,7 @@ The **Forms Module** (`forms/`) provides dynamic form management, schema validat
           "title": "ACES Annual Hackathon Registration",
           "description": "Please fill out your team registration details.",
           "is_active": true,
+          "allow_multiple_responses": false,
           "question_count": 4,
           "created_at": "2026-08-10T10:00:00.000Z"
         }
@@ -344,6 +348,7 @@ The **Forms Module** (`forms/`) provides dynamic form management, schema validat
       "title": "ACES Annual Hackathon Registration",
       "description": "Please fill out your team registration details.",
       "is_active": true,
+      "allow_multiple_responses": false,
       "whatsapp_group_link": "https://chat.whatsapp.com/sampleInviteLink",
       "whatsapp_qr_code": "https://res.cloudinary.com/aces/image/upload/v1/whatsapp_qr.png",
       "questions": [
@@ -397,7 +402,8 @@ The **Forms Module** (`forms/`) provides dynamic form management, schema validat
   ```json
   {
     "title": "ACES Hackathon 2026 Registration (Updated)",
-    "is_active": false
+    "is_active": false,
+    "allow_multiple_responses": true
   }
   ```
 * **Success Response (`200 OK`):** Full updated Form payload (same structure as `GET /api/v1/forms/:form_id`).
@@ -462,7 +468,7 @@ The **Forms Module** (`forms/`) provides dynamic form management, schema validat
 * **Error Scenarios:**
   - `400 Bad Request` (`INVALID_INPUT`):
     - Form filler `email` is missing or invalid.
-    - Response already submitted for this email address on this form.
+    - Response already submitted for this email address on this form (when `allow_multiple_responses: false`). When `allow_multiple_responses: true`, multiple submissions with the same email are permitted.
     - Form is inactive (`is_active = false`).
     - Missing answer for a required question.
     - Textual answer exceeds `max_len`.
@@ -488,7 +494,8 @@ The **Forms Module** (`forms/`) provides dynamic form management, schema validat
     "data": {
       "form_id": "66b64f9e1234567890abcdef",
       "email": "filler@example.com",
-      "exists": true
+      "exists": true,
+      "allow_multiple_responses": false
     },
     "error": null
   }
