@@ -7,7 +7,7 @@ import { ValidationError } from '../../shared/errors/index.js';
  * Controller to create a new form with structured questions
  */
 export const createForm = asyncHandler(async (req, res) => {
-  const { title, description, questions, whatsapp_group_link, whatsapp_qr_code } = req.body;
+  const { title, description, questions, whatsapp_group_link, whatsapp_qr_code, allow_multiple_responses } = req.body;
   const created_by = req.user ? req.user.id : null;
   const result = await FormsInternalService.createForm({
     title,
@@ -16,6 +16,7 @@ export const createForm = asyncHandler(async (req, res) => {
     created_by,
     whatsapp_group_link,
     whatsapp_qr_code,
+    allow_multiple_responses,
   });
   return sendSuccess(res, result, 201);
 });

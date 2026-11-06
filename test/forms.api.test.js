@@ -203,6 +203,34 @@ describe('Forms Module API Tests', () => {
       assert.equal(getRes.status, 200);
       assert.equal(getRes.body.data.questions[0].image_url, 'https://example.com/diagram.png');
     });
+
+    it('should support explicit allow_multiple_responses and default to false when omitted', async () => {
+      const defaultRes = await request('/api/v1/forms', {
+        method: 'POST',
+        token: eventTeamToken,
+        body: getValidFormPayload(),
+      });
+      assert.equal(defaultRes.status, 201);
+      assert.equal(defaultRes.body.data.allow_multiple_responses, false);
+
+      const getDef = await request(`/api/v1/forms/${defaultRes.body.data.form_id}`);
+      assert.equal(getDef.body.data.allow_multiple_responses, false);
+
+      const explicitPayload = {
+        ...getValidFormPayload(),
+        allow_multiple_responses: true,
+      };
+      const explicitRes = await request('/api/v1/forms', {
+        method: 'POST',
+        token: eventTeamToken,
+        body: explicitPayload,
+      });
+      assert.equal(explicitRes.status, 201);
+      assert.equal(explicitRes.body.data.allow_multiple_responses, true);
+
+      const getExp = await request(`/api/v1/forms/${explicitRes.body.data.form_id}`);
+      assert.equal(getExp.body.data.allow_multiple_responses, true);
+    });
   });
 
   describe('GET /api/v1/forms (List Forms)', () => {
@@ -344,6 +372,27 @@ describe('Forms Module API Tests', () => {
       assert.equal(res.body.data.questions.length, 1);
       assert.equal(res.body.data.questions[0].question_statement, 'New Question 1');
     });
+
+    it('should update allow_multiple_responses setting on existing form', async () => {
+      const createRes = await request('/api/v1/forms', {
+        method: 'POST',
+        token: eventTeamToken,
+        body: getValidFormPayload(),
+      });
+      const formId = createRes.body.data.form_id;
+      assert.equal(createRes.body.data.allow_multiple_responses, false);
+
+      const updateRes = await request(`/api/v1/forms/${formId}`, {
+        method: 'PUT',
+        token: eventTeamToken,
+        body: { allow_multiple_responses: true },
+      });
+      assert.equal(updateRes.status, 200);
+      assert.equal(updateRes.body.data.allow_multiple_responses, true);
+
+      const getRes = await request(`/api/v1/forms/${formId}`);
+      assert.equal(getRes.body.data.allow_multiple_responses, true);
+    });
   });
 
   describe('POST /api/v1/forms/:form_id/responses (Submit Form Response)', () => {
@@ -428,6 +477,51 @@ describe('Forms Module API Tests', () => {
       assert.equal(secondRes.status, 400);
       assert.equal(secondRes.body.error.code, 'INVALID_INPUT');
       assert.ok(secondRes.body.error.message.includes('already been submitted'));
+    });
+
+    it('should permit multiple responses with same email when allow_multiple_responses is true', async () => {
+      const multiFormRes = await request('/api/v1/forms', {
+        method: 'POST',
+        token: eventTeamToken,
+        body: {
+          ...getValidFormPayload(),
+          allow_multiple_responses: true,
+        },
+      });
+      const multiFormId = multiFormRes.body.data.form_id;
+
+      const firstRes = await request(`/api/v1/forms/${multiFormId}/responses`, {
+        method: 'POST',
+        body: {
+          email: 'repeat@example.com',
+          answers: { '1': ['Team One'], '2': ['AI/ML'] },
+        },
+      });
+      assert.equal(firstRes.status, 201);
+
+      const secondRes = await request(`/api/v1/forms/${multiFormId}/responses`, {
+        method: 'POST',
+        body: {
+          email: 'repeat@example.com',
+          answers: { '1': ['Team Two'], '2': ['Web Arch'] },
+        },
+      });
+      assert.equal(secondRes.status, 201);
+
+      const thirdRes = await request(`/api/v1/forms/${multiFormId}/responses`, {
+        method: 'POST',
+        body: {
+          email: 'repeat@example.com',
+          answers: { '1': ['Team Three'], '2': ['Cybersecurity'] },
+        },
+      });
+      assert.equal(thirdRes.status, 201);
+
+      const listRes = await request(`/api/v1/forms/${multiFormId}/responses`, {
+        token: eventTeamToken,
+      });
+      assert.equal(listRes.status, 200);
+      assert.equal(listRes.body.data.total_responses, 3);
     });
 
     it('should reject response when required question is missing with 400 Bad Request', async () => {
@@ -590,6 +684,25 @@ describe('Forms Module API Tests', () => {
       const res = await request(`/api/v1/forms/${formId}/responses/check`);
       assert.equal(res.status, 400);
       assert.equal(res.body.error.code, 'INVALID_INPUT');
+    });
+
+    it('should return allow_multiple_responses flag along with exists status', async () => {
+      const res = await request(`/api/v1/forms/${formId}/responses/check?email=exists@example.com`);
+      assert.equal(res.status, 200);
+      assert.equal(res.body.success, true);
+      assert.equal(res.body.data.exists, true);
+      assert.equal(res.body.data.allow_multiple_responses, false);
+
+      await request(`/api/v1/forms/${formId}`, {
+        method: 'PUT',
+        token: eventTeamToken,
+        body: { allow_multiple_responses: true },
+      });
+
+      const resAfter = await request(`/api/v1/forms/${formId}/responses/check?email=exists@example.com`);
+      assert.equal(resAfter.status, 200);
+      assert.equal(resAfter.body.data.exists, true);
+      assert.equal(resAfter.body.data.allow_multiple_responses, true);
     });
   });
 

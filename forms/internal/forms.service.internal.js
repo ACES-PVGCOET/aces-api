@@ -142,8 +142,15 @@ export class FormsInternalService {
   /**
    * Create a new form along with its structured questions
    */
-  static async createForm({ title, description, questions = [], created_by, whatsapp_group_link = '', whatsapp_qr_code = '' }) 
-  {
+  static async createForm({
+    title,
+    description,
+    questions = [],
+    created_by,
+    whatsapp_group_link = '',
+    whatsapp_qr_code = '',
+    allow_multiple_responses = false,
+  }) {
     if (!title || typeof title !== 'string' || !title.trim()) {
       throw new ValidationError('Form title is required.');
     }
@@ -152,6 +159,8 @@ export class FormsInternalService {
       throw new ValidationError('At least one question is required to create a form.');
     }
 
+    const isMultiAllowed = allow_multiple_responses === true || allow_multiple_responses === 'true';
+
     // 1. Create Form Shell
     const form = await Form.create({
       title: title.trim(),
@@ -159,6 +168,7 @@ export class FormsInternalService {
       created_by,
       whatsapp_group_link: whatsapp_group_link?.trim() || '',
       whatsapp_qr_code: whatsapp_qr_code?.trim() || '',
+      allow_multiple_responses: isMultiAllowed,
     });
 
     try {
@@ -177,6 +187,8 @@ export class FormsInternalService {
         form_id: form._id,
         title: form.title,
         description: form.description,
+        is_active: form.is_active,
+        allow_multiple_responses: form.allow_multiple_responses,
         question_count: createdQuestions.length,
         created_at: form.createdAt,
       };
@@ -202,7 +214,7 @@ export class FormsInternalService {
 
     const questions = await Question.find({ form_id }).sort({ question_serial: 1 }).lean();
 
-      const formattedQuestions = questions.map((q) => ({
+    const formattedQuestions = questions.map((q) => ({
       question_id: q._id,
       question_serial: q.question_serial,
       question_statement: q.question_statement,
@@ -217,16 +229,17 @@ export class FormsInternalService {
     }));
 
     return {
-  form_id: form._id,
-  title: form.title,
-  description: form.description,
-  is_active: form.is_active,
-  whatsapp_group_link: form.whatsapp_group_link || '',
-  whatsapp_qr_code: form.whatsapp_qr_code || '',
-  questions: formattedQuestions,
-  created_at: form.createdAt,
-  updated_at: form.updatedAt,
-};
+      form_id: form._id,
+      title: form.title,
+      description: form.description,
+      is_active: form.is_active,
+      allow_multiple_responses: form.allow_multiple_responses === true || form.allow_multiple_responses === 'true',
+      whatsapp_group_link: form.whatsapp_group_link || '',
+      whatsapp_qr_code: form.whatsapp_qr_code || '',
+      questions: formattedQuestions,
+      created_at: form.createdAt,
+      updated_at: form.updatedAt,
+    };
   }
 
   /**
@@ -266,6 +279,7 @@ export class FormsInternalService {
       title: f.title,
       description: f.description,
       is_active: f.is_active,
+      allow_multiple_responses: f.allow_multiple_responses === true || f.allow_multiple_responses === 'true',
       question_count: f.question_ids ? f.question_ids.length : 0,
       response_count: responseCountMap.get(String(f._id)) || 0,
       created_at: f.createdAt,
@@ -306,6 +320,9 @@ export class FormsInternalService {
 
     if (updateData.is_active !== undefined) {
       form.is_active = Boolean(updateData.is_active);
+    }
+    if (updateData.allow_multiple_responses !== undefined) {
+      form.allow_multiple_responses = updateData.allow_multiple_responses === true || updateData.allow_multiple_responses === 'true';
     }
     if (updateData.whatsapp_group_link !== undefined) {
       form.whatsapp_group_link = updateData.whatsapp_group_link.trim();
@@ -376,10 +393,13 @@ export class FormsInternalService {
       throw new ValidationError('A valid email address is required.');
     }
 
-    // Check if response already exists for this email and form
-    const existingResponse = await FormResponse.findOne({ form_id: form._id, email: normalizedEmail });
-    if (existingResponse) {
-      throw new ValidationError('A response has already been submitted with this email address.');
+    // Check if response already exists for this email and form (when multiple responses are disallowed)
+    const isMultiAllowed = form.allow_multiple_responses === true || form.allow_multiple_responses === 'true';
+    if (!isMultiAllowed) {
+      const existingResponse = await FormResponse.findOne({ form_id: form._id, email: normalizedEmail });
+      if (existingResponse) {
+        throw new ValidationError('A response has already been submitted with this email address.');
+      }
     }
 
     if (!answersInput || typeof answersInput !== 'object') {
@@ -526,16 +546,39 @@ export class FormsInternalService {
         submitted_at: new Date(),
       });
 
-     return {
-  response_id: formResponse._id,
-  form_id: form._id,
-  email: formResponse.email,
-  submitted_at: formResponse.submitted_at,
-  whatsapp_group_link: form.whatsapp_group_link || '',
-  whatsapp_qr_code: form.whatsapp_qr_code || '',
-};
+      return {
+        response_id: formResponse._id,
+        form_id: form._id,
+        email: formResponse.email,
+        submitted_at: formResponse.submitted_at,
+        whatsapp_group_link: form.whatsapp_group_link || '',
+        whatsapp_qr_code: form.whatsapp_qr_code || '',
+      };
     } catch (err) {
       if (err.code === 11000) {
+        if (isMultiAllowed) {
+          try {
+            await FormResponse.collection.dropIndex('form_id_1_email_1');
+            await FormResponse.collection.createIndex({ form_id: 1, email: 1 });
+            const retriedResponse = await FormResponse.create({
+              form_id: form._id,
+              member_id: member_id || null,
+              email: normalizedEmail,
+              answers: normalizedAnswers,
+              submitted_at: new Date(),
+            });
+            return {
+              response_id: retriedResponse._id,
+              form_id: form._id,
+              email: retriedResponse.email,
+              submitted_at: retriedResponse.submitted_at,
+              whatsapp_group_link: form.whatsapp_group_link || '',
+              whatsapp_qr_code: form.whatsapp_qr_code || '',
+            };
+          } catch (_retryErr) {
+            // If drop/retry failed, fall through to throw validation error
+          }
+        }
         throw new ValidationError('A response has already been submitted with this email address.');
       }
       throw err;
@@ -561,11 +604,13 @@ export class FormsInternalService {
 
     const normalizedEmail = emailInput.trim().toLowerCase();
     const existing = await FormResponse.findOne({ form_id, email: normalizedEmail }).lean();
+    const isMultiAllowed = form.allow_multiple_responses === true || form.allow_multiple_responses === 'true';
 
     return {
       form_id,
       email: normalizedEmail,
       exists: Boolean(existing),
+      allow_multiple_responses: isMultiAllowed,
     };
   }
 
